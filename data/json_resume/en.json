@@ -1,0 +1,58 @@
+{
+    "$schema": "https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json",
+    "basics": {
+	"name": "Cole Scheller",
+	"label": "C++ Enthusiast",
+	"image": "/images/headshot.jpg",
+	"email": "schelcc@pobox.com",
+	"url": "https://schelcc.dev",
+	"summary": "A summary!",
+	"profiles": [
+	    {
+		"network": "Bluesky",
+		"username": "schelcc.dev",
+		"url": "https://bsky.app/profile/schelcc.dev"
+	    },
+	    {
+		"network": "github",
+		"username": "schelcc",
+		"url": "github.com/schelcc"
+	    }
+	]
+    },
+    "work": [],
+    "volunteer": [],
+    "education": [],
+    "awards": [{
+	"title": "College of Engineering Undergraduate Service Award",
+	"date": "2025-03-01",
+	"awarder": "College of Engineering, Michigan State University"
+    }
+    ],
+    "certificates": [],
+    "publications": [],
+    "skills": [],
+    "languages": [],
+    "interests": [
+	{
+	    "name": "Photography",
+	    "keywords": ["Canon", "Camera", "Photo", "Picture"]
+	},
+	{
+	    "name": "C++",
+	    "keywords": ["C++", "c++", "cpp", "cplusplus"]
+	}
+    ],
+    "references": [],
+    "projects": [{
+	"name": "IndyTUI",
+	"startDate": "2026-05-01",
+	"description": "indy-tui - TODO",
+	"url": "https://github.com/schelcc/indy-tui/"
+    }],
+    "meta": {
+	"canonical": "https://raw.githubusercontent.com/jsonresume/resume-schema/master/resume.json",
+	"version": "v1.0.0",
+	"lastModified": "2017-12-24T15:53:00"
+    }
+}
