@@ -47,6 +47,10 @@ jobs:
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+      - name: Install theme
+        run: "hugo mod get"
+      - name: Setup hugo deps
+        run: "hugo mod npm pack"
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
