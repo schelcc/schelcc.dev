@@ -30,26 +30,51 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    env:
+      HUGO_VERSION: 0.154.5
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DEBIAN_FRONTEND: noninteractive
     steps:
-      # https://github.com/schnerring/hugo-theme-gruvbox/actions/runs/18162039291/workflow
-      - name: Checkout Repository
-        uses: actions/checkout@v5
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Install Node
         uses: actions/setup-node@v5
         with:
-          node-version: "24"
+          node-version: 24
+
       - name: Install Hugo
         uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: "0.148.2"
           extended: true
+
       - name: Write composite package.json
-        run: hugo mod npm pack
+        run: "hugo mod npm pack"
+
       - name: Install npm packages
-        run: npm install
+        run: "npm install"
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+
+      - name: Install theme
+        run: "hugo mod get"
+
+      - name: Setup hugo deps
+        run: "hugo mod npm pack"
+
+      - name: Build with Hugo
+        env:
+          HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
+          HUGO_ENVIRONMENT: production
+        run: |
+          hugo \
+            --minify \
+            --baseURL "${{ steps.pages.outputs.base_url }}/"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
