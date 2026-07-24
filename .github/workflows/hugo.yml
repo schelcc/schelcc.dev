@@ -73,14 +73,9 @@ jobs:
         env:
           HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
           HUGO_ENVIRONMENT: production
-        run: |
-          hugo \
-            --minify \
-            --baseURL "${{ steps.pages.outputs.base_url }}/"
-      # - name: Upload artifact
-      #   uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     path: ./public
+        run: "hugo --minify"
+      - name: Verify prior steps
+        run: "ls -la"
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
