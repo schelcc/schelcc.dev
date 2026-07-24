@@ -33,30 +33,40 @@ jobs:
     env:
       HUGO_VERSION: 0.154.5
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - name: Install Hugo CLI
-        run: |
-          wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
-          && sudo dpkg -i ${{ runner.temp }}/hugo.deb
+        run: "sudo apt install -y hugo"
+
       - name: Install Dart Sass
         run: sudo snap install dart-sass
+
+      - name: Init hugo
+        run: "hugo mod init blog"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+
       - name: Install theme
         run: "hugo mod get"
+
       - name: Setup hugo deps
         run: "hugo mod npm pack"
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
       # - name: Install Node.js dependencies
       #   - run: "[[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true"
+
       - name: Build with Hugo
         env:
           HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
