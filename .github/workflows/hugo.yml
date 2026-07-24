@@ -74,13 +74,12 @@ jobs:
           HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
           HUGO_ENVIRONMENT: production
         run: "hugo --minify"
-      - name: Verify prior steps
-        run: "ls -la"
+
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.ACTIONS_DEPLOY_KEY }}
-          publish_dir: ./public
+          publish_dir: ./publish
 
   # Deployment job
   # deploy:
