@@ -78,7 +78,7 @@ languageCode = "en-US"
     target = "assets/watching/hugo_stats.json"
 
 [params]
-  defaultTheme = "light"
+  defaultTheme = "dark"
   themeColor = "red"
   themeContrast = "soft"
   author = "Cole Scheller"
