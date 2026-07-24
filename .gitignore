@@ -3,6 +3,9 @@
 
 # Build artifacts
 .hugo*
+node_modules/
+public/
+resources/
 
 gh-pages
 gh-pages.pub
