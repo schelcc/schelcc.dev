@@ -78,8 +78,9 @@ jobs:
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./publish
+          cname: schelcc.dev
 
   # Deployment job
   # deploy:
