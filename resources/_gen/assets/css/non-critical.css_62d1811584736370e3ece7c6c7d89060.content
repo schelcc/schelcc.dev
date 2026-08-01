@@ -1,0 +1,1 @@
+/*! MIT License | github.com/schnerring/hugo-theme-gruvbox */code,footer{font-family:var(--font-monospace)}footer{align-items:center;color:var(--fg3);display:flex;font-size:.8rem;justify-content:center;padding-bottom:.5rem;padding-top:2rem;text-align:center}.pagination{display:flex;margin-top:2rem}
