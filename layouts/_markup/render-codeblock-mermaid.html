@@ -1,0 +1,19 @@
+<pre class="mermaid" style="background: var(--bg0) !important">
+---
+config:
+  themeCSS: |-
+    .node * {
+      fill: var(--bg0) !important;
+      color: var(--fg0) !important;
+      stroke: var(--fg0) !important;
+    }
+
+    .actor {
+      fill: var(--bg0) !important;
+      color: var(--fg0) !important;
+      stroke: var(--fg0) !important;
+    }
+---
+{{ .Inner | htmlEscape | safeHTML }}
+</pre>
+{{ .Page.Store.Set "hasMermaid" true }}

@@ -18,6 +18,12 @@ languageCode = "en-US"
   # (Optional) To be able to use all Prism plugins, the theme enables unsafe
   # rendering by default
   #_merge = "deep"
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+  [markup.highlight]
+    codeFences = true
 
 [build]
   # Merge build config of the theme
@@ -89,11 +95,38 @@ languageCode = "en-US"
     text = "schelcc.dev"
     url = "/"
 
+  [params.prism]
+    languages = [
+      "markup",
+      "python",
+      "bash",
+      "cpp"
+    ]
+    plugins = [
+      "normalize-whitespace",
+      "toolbar",
+      "copy-to-clipboard"
+    ]
+
+  [[params.socialShare]]
+    iconSuite = "simple-icon"
+    iconName = "facebook"
+    formatString = "https://www.facebook.com/sharer.php?u={url}"
+  [[params.socialShare]]
+    iconSuite = "simple-icon"
+    iconName = "reddit"
+    formatString = "https://reddit.com/submit?url={url}&title={title}"
+  [[params.socialShare]]
+    iconSuite = "tabler-icon"
+    iconName = "outline/mail"
+    formatString = "mailto:?subject={title}&body={url}"
+
+
 [menu]
   [[menu.main]]
     identifier = "posts"
     name = "Posts"
-    url = "/blog"
+    url = "/posts"
     weight = 10
   [[menu.main]]
     identifier = "about"
