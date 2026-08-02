@@ -1,10 +1,10 @@
 +++
 title = "Delayable Telemetry Queue | Design Notes - indy-tui"
 author = ["Cole"]
-lastmod = 2026-08-01T12:27:43-04:00
+lastmod = 2026-08-01T22:06:00-04:00
 tags = ["design-notes", "indy-tui", "cpp"]
 draft = false
-katex = true
+katex = false
 +++
 
 As the core impetus for my most recent (and ongoing) project, I think a break down of my design and implementation of
@@ -471,7 +471,6 @@ void TelemetryQueue::rebuild_delay() noexcept {
 ```
 
 Next we calculate the new queue size, and then how many frames forward we need to skip.
-
 If the delay is increasing, the frame at the front of the queue _(next to be dequeued)_ is now too
 recent, and thus no skip is necessary. If the delay is being decreased, the front of the queue is
 now too old, requiring us to skip some number of frames ahead.

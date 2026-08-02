@@ -1,0 +1,99 @@
+baseURL = "https://schelcc.dev"
+contentdir = "content"
+publishdir = "publish"
+
+canonifyurls = true
+relativeURLS = false
+
+title = "schelcc"
+languageCode = "en-US"
+
+[build]
+  # Merge build config of the theme
+  _merge = "deep"
+
+[outputs]
+  # The search requires rendering the theme's `searchIndex` output format
+  home = ["html", "searchIndex"]
+
+# https://github.com/schnerring/hugo-theme-gruvbox
+[markup]
+  # (Optional) To be able to use all Prism plugins, the theme enables unsafe
+  # rendering by default
+  # _merge = "deep"
+
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+  # [markup.highlight]
+  #   codeFences = true
+
+[params]
+  defaultTheme = "dark"
+  themeColor = "red"
+  themeContrast = "hard"
+  author = "Cole Scheller"
+  subtitle = "Software Engineer"
+  description = "C++ Enthusiast"
+
+  [params.prism]
+    languages = [
+      "markup",
+      "css",
+      "clike",
+      "c",
+      "cpp",
+      "javascript"
+    ]
+    plugins = [
+      "normalize-whitespace",
+      "toolbar",
+      "copy-to-clipboard"
+    ]
+
+  [params.logo]
+    text = "schelcc.dev"
+    url = "/"
+
+  [[params.socialShare]]
+    iconSuite = "simple-icon"
+    iconName = "facebook"
+    formatString = "https://www.facebook.com/sharer.php?u={url}"
+  [[params.socialShare]]
+    iconSuite = "simple-icon"
+    iconName = "reddit"
+    formatString = "https://reddit.com/submit?url={url}&title={title}"
+  [[params.socialShare]]
+    iconSuite = "tabler-icon"
+    iconName = "outline/mail"
+    formatString = "mailto:?subject={title}&body={url}"
+
+[menu]
+  [[menu.main]]
+    identifier = "posts"
+    name = "Posts"
+    url = "/posts"
+    weight = 10
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about"
+    weight = 11
+  [[menu.main]]
+    identifier = "CV"
+    name = "CV"
+    url = "https://resume.schelcc.dev"
+    weight = 12
+  [[menu.main]]
+    identifier = "photos"
+    name = "Photos"
+    url = "https://photos.schelcc.dev"
+
+[languages]
+  [languages.en]
+    languageName = "English"
+    weight = 10
+  [languages.en.params.jsonResume]
+    present = "present"
+    weight = 13
