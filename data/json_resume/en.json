@@ -2,21 +2,23 @@
     "$schema": "https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json",
     "basics": {
 	"name": "Cole Scheller",
-	"label": "C++ Enthusiast",
+	"label": "Software Developer",
 	"image": "/images/headshot.jpg",
-	"email": "schelcc@pobox.com",
-	"url": "https://schelcc.dev",
-	"summary": "A summary!",
+	"email": "",
+	"url": "",
+	"summary": "C++ Enthusiast with a love for creative solutions & pushing compilers to their limit.",
 	"profiles": [
 	    {
-		"network": "Bluesky",
-		"username": "schelcc.dev",
-		"url": "https://bsky.app/profile/schelcc.dev"
+		"network": "github",
+		"url": "github.com/schelcc"
 	    },
 	    {
-		"network": "github",
-		"username": "schelcc",
-		"url": "github.com/schelcc"
+		"network": "gmail",
+		"url": "mailto:schelcc@pobox.com"
+	    },
+	    {
+		"network": "RSS",
+		"url": "schelcc.dev/index.xml"
 	    }
 	]
     },

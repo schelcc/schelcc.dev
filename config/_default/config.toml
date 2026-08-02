@@ -14,7 +14,7 @@ languageCode = "en-US"
 
 [outputs]
   # The search requires rendering the theme's `searchIndex` output format
-  home = ["html", "searchIndex"]
+  home = ["rss", "html", "searchIndex"]
 
 # https://github.com/schnerring/hugo-theme-gruvbox
 [markup]
