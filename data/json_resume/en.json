@@ -10,7 +10,7 @@
 	"profiles": [
 	    {
 		"network": "github",
-		"url": "github.com/schelcc"
+		"url": "https://github.com/schelcc"
 	    },
 	    {
 		"network": "gmail",
@@ -18,7 +18,7 @@
 	    },
 	    {
 		"network": "RSS",
-		"url": "schelcc.dev/index.xml"
+		"url": "https://schelcc.dev/index.xml"
 	    }
 	]
     },
