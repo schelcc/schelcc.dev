@@ -51,6 +51,7 @@
       "highlight",
       "icon",
       "icon-tabler",
+      "icon-tabler-mail",
       "icon-tabler-menu-2",
       "icon-tabler-moon",
       "icon-tabler-sun",
@@ -79,6 +80,7 @@
       "menu--vertical",
       "menu__burger",
       "menu__item",
+      "mermaid",
       "pagination",
       "post",
       "post-content",
@@ -92,6 +94,9 @@
       "search",
       "search__suggestions--hidden",
       "sidebar",
+      "social-share",
+      "social-share__heading",
+      "social-share__item",
       "theme__toggle"
     ],
     "ids": [

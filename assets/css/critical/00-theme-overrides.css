@@ -1,0 +1,21 @@
+/* For some reason if I override anything in main it adds an 8px margin. */
+body {
+    margin: 0px;
+}
+
+/* Copies most default settings from the main class for the theme, just widens
+   the main content column */
+body > div.layout > main {
+    align-items: start;
+    display: grid;
+    grid-area: main;
+    grid-template-areas: "empty content sidebar";
+
+    /* Default value was: 1fr minmax(0, 650px) 4fr; */
+    grid-template-columns: 1fr minmax(0, 800px) 8fr;
+}
+
+/* Correct the color on social share items. */
+.social-share__item {
+    background: var(--bg) !important;
+}

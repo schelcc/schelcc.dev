@@ -5,6 +5,7 @@ lastmod = 2026-08-01T22:06:00-04:00
 tags = ["design-notes", "indy-tui", "cpp"]
 draft = false
 katex = false
+socialShare = true
 +++
 
 As the core impetus for my most recent (and ongoing) project, I think a break down of my design and implementation of

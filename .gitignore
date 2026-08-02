@@ -8,3 +8,6 @@ public/
 
 gh-pages
 gh-pages.pub
+
+# Test documents that don't need pushed
+*test_*_page*
