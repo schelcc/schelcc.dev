@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>schelcc | blog on schelcc</title><link>https://schelcc.dev/posts/index.xml</link><description>Recent content in schelcc | blog on schelcc</description><generator>Hugo</generator><language/><lastBuildDate>Sat, 01 Aug 2026 22:06:00 -0400</lastBuildDate><atom:link href="https://schelcc.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Sat, 01 Aug 2026 22:06:00 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent (and ongoing) project, I think a break down of my design and implementation of
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>schelcc | blog on schelcc</title><link>https://schelcc.dev/posts/index.xml</link><description>Recent content in schelcc | blog on schelcc</description><generator>Hugo</generator><language/><lastBuildDate>Mon, 03 Aug 2026 12:53:50 -0400</lastBuildDate><atom:link href="https://schelcc.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Mon, 03 Aug 2026 12:53:50 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
 the delay queue used in &lt;a
  href="https://schelcc.dev/tags/indy-tui"
  
@@ -31,7 +31,7 @@ just&amp;hellip; become one&lt;/a&gt;? &lt;a
 &lt;p&gt;Compared to &amp;ldquo;stick and ball&amp;rdquo; sports like hockey, football, or soccer, broadcasting motorsports
 presents a unique challenge: the broadcast can only ever show a very small fraction of what&amp;rsquo;s happening at any given
 time. Aside from the primary challenge that it&amp;rsquo;s just not possible to show all 25+ cars spanning miles on screen at
-once, each of those cars has a team plotting strategy (sometimes) on the radio throughout the duration of the
+once, each of those cars has a team plotting strategy &lt;em&gt;(sometimes)&lt;/em&gt; on the radio throughout the duration of the
 event. Needless to say, if your favorite driver is not in the top X or is clearly charging through the field, it&amp;rsquo;s not a
 given they&amp;rsquo;ll get much coverage (if any).&lt;/p&gt;
 &lt;p&gt;To their credit, various broadcasts have made progress trying to tackle this problem. The most important of these
@@ -51,10 +51,10 @@ watching? Watched a pass thrown and had all suspense robbed from you as said nei
 for you, the ball is still in the air? Unfortunately, unless you are lucky enough to somehow&lt;sup id="fnref:4"&gt;&lt;a href="#fn:4" class="footnote-ref" role="doc-noteref"&gt;4&lt;/a&gt;&lt;/sup&gt;
 have a broadcast with next to zero delay, this upstairs neighbor and these online leaderboard options are one in the
 same &amp;ndash; the online leaderboards have a very neglible delay, while broadcasts do not. Using what the series gives you,
-your two options are to either just take the on screen leaderboard and take the lack of spoilers over getting the
+your two options are to either just take the on screen leaderboard and accept the lack of spoilers over getting the
 information you want, or to use their online leaderboard and get the information desired but spoilers along with it.&lt;/p&gt;
-&lt;p&gt;All that&amp;rsquo;s really needed here is a way to delay the leaderboard information (from here on &amp;ldquo;telemetry&amp;rdquo;) by a configurable
-amount. While I don&amp;rsquo;t know of any major series which offers this, there is third party tooling which does&lt;sup id="fnref:5"&gt;&lt;a href="#fn:5" class="footnote-ref" role="doc-noteref"&gt;5&lt;/a&gt;&lt;/sup&gt;. Although the options I&amp;rsquo;ve tried out do work well, I&amp;rsquo;ve
+&lt;p&gt;All that&amp;rsquo;s really needed here is a way to delay the leaderboard information &lt;em&gt;(from here on &amp;ldquo;telemetry&amp;rdquo;)&lt;/em&gt; by a configurable
+amount. While I don&amp;rsquo;t know of any major series which offers this directly, there is third party tooling which does&lt;sup id="fnref:5"&gt;&lt;a href="#fn:5" class="footnote-ref" role="doc-noteref"&gt;5&lt;/a&gt;&lt;/sup&gt;. Although the options I&amp;rsquo;ve tried out do work, I&amp;rsquo;ve
 had a few main gripes:&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -75,39 +75,39 @@ forth, it is not uncommon to wind up with the observed delay markedly longer tha
 &lt;p&gt;&lt;strong&gt;The tools are not open source&lt;/strong&gt;. Ultimately, this is the most consequential gripe &amp;ndash; if I am the only person in the
 world that has the above issues, I will happily fork the project and make it most comfortable for myself. Without
 that ability, I am left to either suck it up or try my hand at a solution.&lt;/p&gt;
-&lt;p&gt;So, try my hand I did. This brings us to our goals and priorities.&lt;/p&gt;
+&lt;p&gt;So, try my hand I did.&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="goals"&gt;Goals&lt;a href="#goals" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h3&gt;
 &lt;ol&gt;
-&lt;li&gt;The delay is consistent.
+&lt;li&gt;&lt;strong&gt;The delay is consistent&lt;/strong&gt;.
 &lt;ul&gt;
 &lt;li&gt;There should be strong guards against undershoot and overshoot.&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;li&gt;Exact delay is more important that continuity of telemetry.
+&lt;li&gt;&lt;strong&gt;Exact delay is more important that continuity of telemetry&lt;/strong&gt;.
 &lt;ul&gt;
 &lt;li&gt;There will be stutters in the telemetry we receive. I care that what is at the &amp;ldquo;live&amp;rdquo; end of the delay queue is
 exactly what is &amp;ldquo;live&amp;rdquo; much more than I care that the telemetry shown is continuous (w/o skipping).&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;li&gt;The delay is configured in second increments.
+&lt;li&gt;&lt;strong&gt;The delay is configured in second increments&lt;/strong&gt;.
 &lt;ul&gt;
-&lt;li&gt;If implemented well, this is easily updated later to be half-second (or smaller) increments.&lt;/li&gt;
+&lt;li&gt;If implemented well, this is easily updated later to be half-second &lt;em&gt;(or smaller)&lt;/em&gt; increments.&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;li&gt;The queue is thread-safe.
+&lt;li&gt;&lt;strong&gt;The queue is thread-safe&lt;/strong&gt;.
 &lt;ul&gt;
 &lt;li&gt;When used in the project, we&amp;rsquo;ll want to have what is basically a producer-consumer setup.&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;li&gt;Delay status is retrievable.
+&lt;li&gt;&lt;strong&gt;Delay status is retrievable&lt;/strong&gt;.
 &lt;ul&gt;
 &lt;li&gt;We&amp;rsquo;ll want to show on the interface whether the delay is satisfied, and if not how much of a delay is accrued.&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;li&gt;The delay can be zero.
+&lt;li&gt;&lt;strong&gt;The delay can be zero&lt;/strong&gt;.
 &lt;ul&gt;
 &lt;li&gt;If the user wants a &amp;ldquo;true&amp;rdquo; live feed, we don&amp;rsquo;t want to have a second queue to accommodate it.&lt;/li&gt;
 &lt;/ul&gt;
@@ -131,59 +131,58 @@ unavoidable that the telemetry we receive will be at an inconsistent rate, so by
 risk of a delay overshoot &lt;em&gt;(thus also violating the other half of goal one)&lt;/em&gt;. With this solution, we end up implementing a
 &amp;ldquo;best case&amp;rdquo; delay; if we receive telemetry faster than we can process and display it, we will quickly build up a surplus
 of unprocessed telemetry frames, resulting in a delay overshoot.&lt;/p&gt;
-&lt;p&gt;If the end goal were a data collection tool for later analysis of race telemetry (which wouldn&amp;rsquo;t require delay
-functionality) this continuity would likely be paramount, and this solution would likely win out. But, that&amp;rsquo;s not our
+&lt;p&gt;If the end goal were a data collection tool for later analysis of race telemetry &lt;em&gt;(which wouldn&amp;rsquo;t require delay
+functionality)&lt;/em&gt; this continuity would likely be paramount, and this solution would certainly win out. But, that&amp;rsquo;s not our
 application, so we need another plan.&lt;/p&gt;
 &lt;h3 id="fixed-size-queue"&gt;Fixed-size queue&lt;a href="#fixed-size-queue" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h3&gt;
-&lt;p&gt;This fixed-sized queue leverages two truths in this specific application: TUI users don&amp;rsquo;t expect the the utmost temporal
-resolution for the presentation of data, and only so much data is actually understandable to humans at once. That is to
+&lt;p&gt;This fixed-sized queue leverages two truths in this specific application: TUI users don&amp;rsquo;t expect the utmost temporal
+resolution for data presentation, and only so much data is actually understandable to humans at once. That is to
 say, in this application, there is quickly a limit to how fast the interface&amp;rsquo;s refresh rate actually needs to be. Thus,
 we can fix a refresh rate, for now at 10 Hz.&lt;/p&gt;
-&lt;p&gt;Given a fixed refresh rate and a configured delay, we can fix the size of the queue in total delay frames required as
-the refresh rate multiplied by the desired delay. Then, we allow dequeue only when all frames are filled, and we &amp;ldquo;allow&amp;rdquo;
-&lt;em&gt;(more on this in the implementation section)&lt;/em&gt; enqueue only when not all frames are filled. Alongside that, the number of
-frames between the front and back give the total delay currently accrued.&lt;/p&gt;
-&lt;p&gt;As long as we know that we can always process and display an individual frame faster than the refresh rate &lt;em&gt;(and, we can
-&amp;ndash; we set the refresh rate)&lt;/em&gt;, we know that the delay is consistent as per goal one. Similarly, by only &amp;ldquo;allowing&amp;rdquo; enqueue
-when the delay is not satisfied, we know that at any given time the frame at the back of the queue is a snapshot in time
-exactly as long ago as the delay is configured, regardless of whether there were received frames between the last
-&amp;ldquo;snapshot&amp;rdquo; and the most recent one, satisfying goal two. The &amp;ldquo;fixed&amp;rdquo; queue size is using the configured delay, so
-regardless of the current choice we can recalculate it as the configuration changes, satisfying goal three. As you will
-see, the implementation is thread safe, and as noted above we can easily calculate the current status of the delay,
-knocking out goals four and five.&lt;/p&gt;
-&lt;p&gt;This leaves us with goal six, and there&amp;rsquo;s an option here to feed two birds with one scone&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;. See, one problem with this
-proposed solution is a sort of &amp;ldquo;hitching&amp;rdquo; problem &amp;ndash; there&amp;rsquo;s this back-and-forth dance where the queue is full, the
-telemetry frame at the front is dequeued and shown, and before a new frame is received the interface tries and now fails
-to dequeue the next frame. To get around this, we can simply add some &amp;ldquo;slop&amp;rdquo; to the end of the queue, some relatively
-small number of frames with which we permit the queue to &lt;em&gt;just barely&lt;/em&gt; over/undershoot. This way, the interface has a
-handful of delay-satisfactory frames to chew on while waiting for new telemetry to come in, and the telemetry receiver
-thread has some padding to flex in case a burst of frames come in.&lt;/p&gt;
-&lt;p&gt;Now we feed the second bird: when we want to go &amp;ldquo;live&amp;rdquo;, we drop the queue down to just the &amp;ldquo;slop&amp;rdquo; frames. With a refresh
-rate of 10 Hz &lt;em&gt;(that&amp;rsquo;s 10 telemetry frames every second)&lt;/em&gt; it would take ten slop frames to reach a delay of one second. So,
-as long as we keep the slop frames to at most around five, we can keep the &amp;ldquo;live&amp;rdquo; delay down to less than half a
-second. This does reintroduce the hitching problem, but with a truly live feed the hitching is unavoidable as the
-telemetry is again coming in at a varying rate. As far as I have observed in testing, this solution is perfectly
+&lt;p&gt;Given a fixed refresh rate and a configured delay, we can fix the size of the queue in total delay
+frames required as the refresh rate multiplied by the desired delay. Then, we allow dequeue only
+when all frames are filled, and we allow enqueue only when not all frames are filled. Alongside
+that, the number of frames between the front and back give the total delay currently accrued.&lt;/p&gt;
+&lt;p&gt;As long as we know that we can always process and display an individual frame faster than the
+refresh&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;, we know that the delay is consistent as per
+goal one. Similarly, by only allowing enqueue when the delay is not satisfied, we know that at any
+given time the frame at the back of the queue is a snapshot in time exactly as long ago as the delay
+is configured, regardless of whether there were received frames between the last &amp;ldquo;snapshot&amp;rdquo; and the
+most recent one, satisfying goal two. The &amp;ldquo;fixed&amp;rdquo; queue size is using the configured delay, so
+regardless of the current choice we can recalculate it as the configuration changes, satisfying goal
+three. As you will see, the implementation is thread safe, and as noted above we can easily
+calculate the current status of the delay, knocking out goals four and five.&lt;/p&gt;
+&lt;p&gt;This leaves us with goal six, and there&amp;rsquo;s an option here to feed two birds with one scone&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;. See, one problem with this proposed solution is a
+sort of &amp;ldquo;hitching&amp;rdquo; problem &amp;ndash; there&amp;rsquo;s this back-and-forth dance where the queue is full, the
+telemetry frame at the front is dequeued and shown, and before a new frame is received the interface
+tries and now fails to dequeue the next frame. To get around this, we can simply add some &amp;ldquo;slop&amp;rdquo; to
+the end of the queue, some relatively small number of frames with which we permit the queue to &lt;em&gt;just
+barely&lt;/em&gt; over/undershoot. This way, the interface has a handful of delay-satisfactory frames to chew
+on while waiting for new telemetry to come in, and the telemetry receiver thread has some padding to
+flex in case a burst of frames come in.&lt;/p&gt;
+&lt;p&gt;Now we feed the second bird: when we want to go &amp;ldquo;live&amp;rdquo;, we drop the queue down to just the &amp;ldquo;slop&amp;rdquo;
+frames. With a refresh rate of 10 Hz &lt;em&gt;(that&amp;rsquo;s 10 telemetry frames every second)&lt;/em&gt; it would take ten
+slop frames to reach a delay of one second. So, as long as we keep the slop frames to at most around
+five, we can keep the &amp;ldquo;live&amp;rdquo; delay down to less than half a second. This does reintroduce the
+hitching problem, but with a truly live feed the hitching is unavoidable as again the telemetry is
+coming in at a varying rate. As far as I have observed in testing, this solution is perfectly
 satisfactory for a live display.&lt;/p&gt;
 &lt;p&gt;That&amp;rsquo;s all six goals &amp;ndash; on to implementation.&lt;/p&gt;
 &lt;h2 id="implementation"&gt;Implementation&lt;a href="#implementation" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h2&gt;
 &lt;p&gt;&lt;em&gt;Note: This will reflect what is live in the repo at the time of writing, but I do not guarantee that it will remain
 that way.&lt;/em&gt;&lt;/p&gt;
-&lt;p&gt;One of my primary goals at the outset of this project was to get more experience in multithreaded development broadly as
-well as some experience in how to tackle it whilst staying within the C++ standard library. As such, I&amp;rsquo;m sure there are
-likely different and possibly better ways to do certain things I&amp;rsquo;ve done here. If you notice any, please don&amp;rsquo;t hesitate
-to reach out &amp;ndash; that learning is one of my original goals here!&lt;/p&gt;
 &lt;h3 id="the-delayinfo-dataclass"&gt;The &lt;code&gt;DelayInfo&lt;/code&gt; dataclass&lt;a href="#the-delayinfo-dataclass" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h3&gt;
-&lt;p&gt;Whenever either &lt;code&gt;delay_s&lt;/code&gt; (delay in seconds) or &lt;code&gt;refresh_hz&lt;/code&gt; (refresh rate in hz), two calculated parameters change:&lt;/p&gt;
+&lt;p&gt;Whenever either &lt;code&gt;delay_s&lt;/code&gt; &lt;em&gt;(delay in seconds)&lt;/em&gt; or &lt;code&gt;refresh_hz&lt;/code&gt; (refresh rate in hz), two calculated parameters change:&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;code&gt;total_frames&lt;/code&gt; : The calculated number of frames in the queue&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;frame_period&lt;/code&gt; : The amount of time represented by one frame&lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;Given how tightly bound these four parameters are, and how frequently they&amp;rsquo;re used together throughout the
 implementation, it&amp;rsquo;s important for thread safety that we prohibit the use of one whilst any other is changing. This is
-all the &lt;code&gt;DelayInfo&lt;/code&gt; exists to do.&lt;/p&gt;
+all &lt;code&gt;DelayInfo&lt;/code&gt; exists to do.&lt;/p&gt;
 &lt;p&gt;Omitting some not-so-relevant details, we lay out the class as:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;class&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;DelayInfo&lt;/span&gt; {
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;static&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;constexpr&lt;/span&gt; size_t DELAY_SLOP &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;;
@@ -232,30 +231,28 @@ give a good idea:&lt;/p&gt;
 &lt;li&gt;Take the &lt;code&gt;unique_lock&lt;/code&gt; as mentioned before&lt;/li&gt;
 &lt;li&gt;Calculate the number of frames needed as the delay multiplied by the refresh rate, adding the slop
 frames&lt;/li&gt;
-&lt;li&gt;Calculate the frame period (total amount of time represented by one frame, in milliseconds) as the
+&lt;li&gt;Calculate the frame period &lt;em&gt;(total amount of time represented by one frame, in milliseconds)&lt;/em&gt; as the
 reciprocal of the refresh rate&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="telemetryqueue"&gt;&lt;code&gt;TelemetryQueue&lt;/code&gt;&lt;a href="#telemetryqueue" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h3&gt;
 &lt;p&gt;Rather than just walk through the class definition, we&amp;rsquo;ll approach it from a more bottom-up
 direction. To start with, we&amp;rsquo;ll go over some background on the queue and then the most important two
-functions of this (or any) queue: enqueueing and dequeueing. Following that, we&amp;rsquo;ll close out by
+functions of this &lt;em&gt;(or any)&lt;/em&gt; queue: enqueueing and dequeueing. Following that, we&amp;rsquo;ll close out by
 covering the queue reconfiguration process.&lt;/p&gt;
 &lt;h4 id="queue-background"&gt;Queue background&lt;a href="#queue-background" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h4&gt;
-&lt;p&gt;Since the number of the frames in the queue at any time is just a function of the refresh rate and
-configured delay (and is thus essentially fixed-size), I opted to reach for a single-ended &lt;a
+&lt;p&gt;Since the number of the frames in the queue at any time is essentially fixed-size, I opted to reach
+for a single-ended &lt;a
  href="https://en.wikipedia.org/wiki/Circular_buffer"
  
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;circular
-queue&lt;/a&gt;. With this approach, we simply track enqueue and dequeue indices, adjusting them only when we
-take in or give out a telemetry frame.&lt;/p&gt;
-&lt;p&gt;To access the queue, the actual position in the queue is the the index reduced modulo the queue size
-(total number of delay frames). This way, the indices we track simultaneously tell us both where to
-access the queue at, and the amount of time between the front and back &amp;ndash; the total delay accrued.&lt;/p&gt;
+&gt;circular queue&lt;/a&gt;. With this approach, we simply track monotonically increasing
+enqueue and dequeue indices, adjusting them only when we take in or give out a telemetry
+frame. Then, to access the queue, the actual position is calculated as the index reduced modulo the
+queue size.&lt;/p&gt;
 &lt;p&gt;As highlighted earlier, a primary goal was to be able to split the &amp;ldquo;producer&amp;rdquo; and &amp;ldquo;consumer&amp;rdquo; logic
 between different threads; one to receive telemetry, the other to process and display it. With this
 design, we just need two small additions to get there:&lt;/p&gt;
@@ -295,7 +292,7 @@ can mark the method as &lt;code&gt;noexcept&lt;/code&gt;.&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;TelemetryQueue&lt;span style="color:#f92672"&gt;::&lt;/span&gt;dequeue() &lt;span style="color:#66d9ef"&gt;noexcept&lt;/span&gt; {
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;First, we double check that the dequeue index is not ahead of the enqueue index, as this is
 considered &amp;ldquo;impossible&amp;rdquo; &amp;ndash; if this has happened, we are in an unrecoverrable state. As such, we
-check this with an assertion&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
+check this with an assertion&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;assert(_deq_idx &lt;span style="color:#f92672"&gt;&amp;lt;=&lt;/span&gt; _enq_idx);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Next we check that the delay is satisfied. The call to &lt;code&gt;delay_info&lt;/code&gt;&amp;rsquo;s &lt;code&gt;get_min_delay_frames()&lt;/code&gt; just
 retrieves the minimum number of frames between the enqueue and dequeue indices such that the delay
@@ -328,13 +325,16 @@ on its mutex &lt;em&gt;(this is again a RAII wrapper, just not shared lock this 
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&lt;/span&gt;cur_frame &lt;span style="color:#f92672"&gt;=&lt;/span&gt; _frames.at(_deq_idx &lt;span style="color:#f92672"&gt;%&lt;/span&gt; _frames.size());
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;scoped_lock single_lock(cur_frame.mtx);
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we check if the frame retrieved is actually present. We return frames as a
-&lt;code&gt;std::unique_ptr&amp;lt;TelemetryFrame&amp;gt;&lt;/code&gt;, when we give them to the caller we are moving&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt; them out of the queue, and
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we check if the frame retrieved is actually present. Given that we return frames as a
+&lt;code&gt;std::unique_ptr&amp;lt;TelemetryFrame&amp;gt;&lt;/code&gt;, when we give them to the caller we are moving&lt;sup id="fnref:11"&gt;&lt;a href="#fn:11" class="footnote-ref" role="doc-noteref"&gt;11&lt;/a&gt;&lt;/sup&gt; them out of the queue. Then,
 since &lt;code&gt;std::unique_ptr&lt;/code&gt;&amp;rsquo;s move constructor sets the moved-from ptr to &lt;code&gt;nullptr&lt;/code&gt;, a frame which is not
 yet populated will be &lt;code&gt;nullptr&lt;/code&gt;. As such, if the frame we retrieve is &lt;code&gt;nullptr&lt;/code&gt;, it means that we have
 somehow advanced to a frame which is not ready, so the delay is not yet satisied. This should
-generally not happen, but it is good practice to check and be sure when using &lt;code&gt;unique_ptr&lt;/code&gt; (or
-pointers in general).&lt;/p&gt;
+generally not happen, but it is good practice to check pointers regardless.&lt;/p&gt;
+&lt;p&gt;The use of &lt;code&gt;std::unique_ptr&lt;/code&gt; for handing around the frames is a vestige of prior unrelated troubleshooting
+regarding the &lt;code&gt;TelemetryFrame&lt;/code&gt;&amp;rsquo;s move constructor. At this point it&amp;rsquo;s not necessary, and is probably a
+target for future refactor/cleanup. With that said, the indirection cost of a pointer when accessing
+the frame is negligible here, so to change it would be only for cleanliness &lt;em&gt;(still a very worthy cause)&lt;/em&gt;.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (cur_frame.frame &lt;span style="color:#f92672"&gt;==&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;nullptr&lt;/span&gt;)
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unexpected(Err{Err&lt;span style="color:#f92672"&gt;::&lt;/span&gt;TOO_RECENT});
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Finally, we know that we have a valid frame. As such, we&amp;rsquo;ll step the dequeue index forward one frame
@@ -368,8 +368,8 @@ and then return the frame we retrieved before.&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="enqueue"&gt;Enqueue&lt;a href="#enqueue" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h4&gt;
-&lt;p&gt;Since the enqueue logic is very similar to dequeue, we&amp;rsquo;ll start with the full method and dissect
-where they differ.&lt;/p&gt;
+&lt;p&gt;Since the enqueue logic mirrors that of dequeue, we&amp;rsquo;ll start with the full method and dissect where
+they differ.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;expected&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;void&lt;/span&gt;, TelemetryQueue&lt;span style="color:#f92672"&gt;::&lt;/span&gt;Err&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;TelemetryQueue&lt;span style="color:#f92672"&gt;::&lt;/span&gt;enqueue(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string_view &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; payload) &lt;span style="color:#66d9ef"&gt;noexcept&lt;/span&gt; {
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; assert(&lt;span style="color:#f92672"&gt;!&lt;/span&gt;payload.empty());
@@ -416,14 +416,10 @@ the queue accordingly, we need to check if the frame is in a valid state. If it 
 nothing, and if not, we return the previously mentioned &lt;code&gt;Err&lt;/code&gt; with the corresponding state.&lt;/p&gt;
 &lt;h4 id="queue-reconfiguration"&gt;Queue reconfiguration&lt;a href="#queue-reconfiguration" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h4&gt;
-&lt;p&gt;Here is where we&amp;rsquo;ll handle rebuilding the delay upon delay reconfiguration. Broadly, we need to be
-able to accomplish two things:&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;If the delay is being decreased, we need to shrink the queue size.&lt;/li&gt;
-&lt;li&gt;If the delay is being increased, we need to grow the queue size.&lt;/li&gt;
-&lt;/ol&gt;
+&lt;p&gt;Here is where we&amp;rsquo;ll handle rebuilding the delay upon delay reconfiguration. If the delay is
+decreased, we need to shrink the queue size, and likewise grow it if the delay is increased.&lt;/p&gt;
 &lt;p&gt;It would be a very frustrating user experience if the full delay had to be re-accrued upon every
-delay change. As such, we need to preserve whatever amount of the delay is relevant when rebuilding
+delay change, so we need to preserve whatever amount of the delay is relevant when rebuilding
 the delay &amp;ndash; we will come back to this shortly.&lt;/p&gt;
 &lt;p&gt;As mentioned before, delay reconfiguration is the only time the full queue&amp;rsquo;s mutex needs to block
 enqueue/dequeue &lt;em&gt;(and enqueue/dequeue needs to block reconfiguration)&lt;/em&gt;, so we&amp;rsquo;ll start by taking a
@@ -434,7 +430,7 @@ enqueue/dequeue &lt;em&gt;(and enqueue/dequeue needs to block reconfiguration)&l
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;scoped_lock lock(_delay_info_mtx);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Next we calculate the new queue size, and then how many frames forward we need to skip.
 If the delay is increasing, the frame at the front of the queue &lt;em&gt;(next to be dequeued)&lt;/em&gt; is now too
-recent, and thus no skip is necessary. If the delay is being decreased, the front of the queue is
+recent, and thus no skip is necessary. If the delay is decreasing, the front of the queue is
 now too old, requiring us to skip some number of frames ahead.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;size_t prev_delay_frames &lt;span style="color:#f92672"&gt;=&lt;/span&gt; _frames.size();
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;size_t new_delay_frames &lt;span style="color:#f92672"&gt;=&lt;/span&gt;
@@ -445,12 +441,12 @@ now too old, requiring us to skip some number of frames ahead.&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;:&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;;
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Since C++&amp;rsquo;s &lt;code&gt;std::mutex&lt;/code&gt; is neither copyable nor movable, and the queue contains a wrapped version of
 &lt;code&gt;TelemetryFrame&lt;/code&gt; adding a mutex, the &lt;code&gt;std::vector&lt;/code&gt; which underlies the queue is also neither copyable
-nor movable. It is for this reason that we cannot simply extend the existing vector &amp;ndash; we instead
-create a new one and move preserved frames over.&lt;/p&gt;
+nor movable. Hence, we cannot simply extend the existing vector &amp;ndash; we instead create a new one and
+move preserved frames over.&lt;/p&gt;
 &lt;p&gt;So, first we create the new vector with the new length:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;vector&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;LockedFrame&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; new_frames(new_delay_frames);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then, if this is the initial configuration of the queue, there are no frames to preserve, and we can
-just set our vector and be done:&lt;/p&gt;
+just set our vector and return early:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (_enq_idx &lt;span style="color:#f92672"&gt;==&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;) {
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; _frames &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;move(new_frames);
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt;;
@@ -469,7 +465,7 @@ simply move each frame over until we reach the enqueue index:&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;move(_frames.at(copy_idx &lt;span style="color:#f92672"&gt;%&lt;/span&gt; prev_delay_frames).frame);
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Finally, we move the new vector into &lt;code&gt;_frames&lt;/code&gt; and be done:&lt;/p&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Finally, we move the new vector into &lt;code&gt;_frames&lt;/code&gt; and are done:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;_frames &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;move(new_frames);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;In total, for queue reconfiguration we have:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;void&lt;/span&gt; TelemetryQueue&lt;span style="color:#f92672"&gt;::&lt;/span&gt;rebuild_delay() &lt;span style="color:#66d9ef"&gt;noexcept&lt;/span&gt; {
@@ -544,7 +540,7 @@ more effectively defend the solution seen here than the dynamic solution I had l
 went back and once again implemented yet another telemetry queue, now taking a little more time to
 make sure every decision was grounded in a set of end goals. What resulted was definitely rough
 around the edges and took some effort to smooth it out &amp;ndash; that&amp;rsquo;s unavoidable. But, with that effort,
-I eventually got to a point where I finally &lt;em&gt;couldn&amp;rsquo;t&lt;/em&gt; trick the delay into failing. Surely there are
+I eventually got to a point where I finally &lt;em&gt;couldn&amp;rsquo;t&lt;/em&gt; trick the delay into failing. Surely, there are
 latent issues which will show themselves in due time, but what I have now is something that meets
 the goals I laid out, built following a design process I executed.&lt;/p&gt;
 &lt;p&gt;Once again: this is &lt;em&gt;a&lt;/em&gt; solution, certainly not &lt;em&gt;the&lt;/em&gt; solution. Hopefully, it&amp;rsquo;s now clear why I&amp;rsquo;ve picked
@@ -564,12 +560,12 @@ this one.&lt;/p&gt;
 &lt;li id="fn:4"&gt;
 &lt;p&gt;this is a really cool
 explanation of this delay problem and why it&amp;rsquo;s not going anywhere &lt;a
- href="https://www.youtube.com/watch?v=CgcXli8NxHw&amp;amp;t=301s"
+ href="https://www.youtube.com/watch?v=CgcXli8NxHw"
  
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://www.youtube.com/watch?v=CgcXli8NxHw&amp;t=301s&lt;/a&gt;&amp;#160;&lt;a href="#fnref:4" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://www.youtube.com/watch?v=CgcXli8NxHw&lt;/a&gt;&amp;#160;&lt;a href="#fnref:4" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:5"&gt;
 &lt;p&gt;&lt;a
@@ -590,16 +586,20 @@ broadcast delay and accept that what I see on my leaderboard is just barely behi
 &lt;p&gt;telemetry is sent rather quickly, with each frame representing at most slightly less than a second&amp;#160;&lt;a href="#fnref:7" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:8"&gt;
-&lt;p&gt;this has, for better or
-worse, worked its way into my lexicon: &lt;a
+&lt;p&gt;and, we can &amp;ndash; we pick the refresh rate&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:9"&gt;
+&lt;p&gt;this
+has, for better or worse, worked its way into my lexicon:
+&lt;a
  href="https://x.com/peta/status/1070066047414345729"
  
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://x.com/peta/status/1070066047414345729&lt;/a&gt;&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://x.com/peta/status/1070066047414345729&lt;/a&gt;&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:9"&gt;
+&lt;li id="fn:10"&gt;
 &lt;p&gt;I cannot wait to rewrite this and make this a
 &lt;a
  href="https://en.cppreference.com/cpp/language/contracts"
@@ -607,9 +607,9 @@ worse, worked its way into my lexicon: &lt;a
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;pre and post condition&lt;/a&gt; once C++26 is mature&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;pre and post condition&lt;/a&gt; once C++26 is mature&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:10"&gt;
+&lt;li id="fn:11"&gt;
 &lt;p&gt;here is a decent
 explainer on those new to C++&amp;rsquo;s move semantics:
 &lt;a
@@ -618,7 +618,7 @@ explainer on those new to C++&amp;rsquo;s move semantics:
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://stackoverflow.com/questions/3106110/what-is-move-semantics&lt;/a&gt;&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://stackoverflow.com/questions/3106110/what-is-move-semantics&lt;/a&gt;&amp;#160;&lt;a href="#fnref:11" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;/div&gt;</description></item></channel></rss>
