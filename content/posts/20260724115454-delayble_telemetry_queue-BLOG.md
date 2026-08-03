@@ -1,14 +1,13 @@
 +++
 title = "Delayable Telemetry Queue | Design Notes - indy-tui"
 author = ["Cole"]
-lastmod = 2026-08-01T22:06:00-04:00
+lastmod = 2026-08-03T12:53:50-04:00
 tags = ["design-notes", "indy-tui", "cpp"]
 draft = false
 katex = false
-socialShare = true
 +++
 
-As the core impetus for my most recent (and ongoing) project, I think a break down of my design and implementation of
+As the core impetus for my most recent _(and ongoing)_ project, I think a break down of my design and implementation of
 the delay queue used in [#indy-tui](/tags/indy-tui) is perfectly befitting of a first post.
 
 I'll start with a little background[^fn:1] on the project, follwed by a
@@ -32,7 +31,7 @@ This is _a_ solution, but certainly not _the_ solution -- my hope is to illustra
 Compared to "stick and ball" sports like hockey, football, or soccer, broadcasting motorsports
 presents a unique challenge: the broadcast can only ever show a very small fraction of what's happening at any given
 time. Aside from the primary challenge that it's just not possible to show all 25+ cars spanning miles on screen at
-once, each of those cars has a team plotting strategy (sometimes) on the radio throughout the duration of the
+once, each of those cars has a team plotting strategy _(sometimes)_ on the radio throughout the duration of the
 event. Needless to say, if your favorite driver is not in the top X or is clearly charging through the field, it's not a
 given they'll get much coverage (if any).
 
@@ -55,11 +54,11 @@ watching? Watched a pass thrown and had all suspense robbed from you as said nei
 for you, the ball is still in the air? Unfortunately, unless you are lucky enough to somehow[^fn:4]
 have a broadcast with next to zero delay, this upstairs neighbor and these online leaderboard options are one in the
 same -- the online leaderboards have a very neglible delay, while broadcasts do not. Using what the series gives you,
-your two options are to either just take the on screen leaderboard and take the lack of spoilers over getting the
+your two options are to either just take the on screen leaderboard and accept the lack of spoilers over getting the
 information you want, or to use their online leaderboard and get the information desired but spoilers along with it.
 
-All that's really needed here is a way to delay the leaderboard information (from here on "telemetry") by a configurable
-amount. While I don't know of any major series which offers this, there is third party tooling which does[^fn:5]. Although the options I've tried out do work well, I've
+All that's really needed here is a way to delay the leaderboard information _(from here on "telemetry")_ by a configurable
+amount. While I don't know of any major series which offers this directly, there is third party tooling which does[^fn:5]. Although the options I've tried out do work, I've
 had a few main gripes:
 
 1.  **The delay is configured in milliseconds**. When I'm trying to measure a delay while watching a race, I
@@ -74,23 +73,23 @@ had a few main gripes:
     world that has the above issues, I will happily fork the project and make it most comfortable for myself. Without
     that ability, I am left to either suck it up or try my hand at a solution.
 
-    So, try my hand I did. This brings us to our goals and priorities.
+    So, try my hand I did.
 
 
 ### Goals {#goals}
 
-1.  The delay is consistent.
+1.  **The delay is consistent**.
     -   There should be strong guards against undershoot and overshoot.
-2.  Exact delay is more important that continuity of telemetry.
+2.  **Exact delay is more important that continuity of telemetry**.
     -   There will be stutters in the telemetry we receive. I care that what is at the "live" end of the delay queue is
         exactly what is "live" much more than I care that the telemetry shown is continuous (w/o skipping).
-3.  The delay is configured in second increments.
-    -   If implemented well, this is easily updated later to be half-second (or smaller) increments.
-4.  The queue is thread-safe.
+3.  **The delay is configured in second increments**.
+    -   If implemented well, this is easily updated later to be half-second _(or smaller)_ increments.
+4.  **The queue is thread-safe**.
     -   When used in the project, we'll want to have what is basically a producer-consumer setup.
-5.  Delay status is retrievable.
+5.  **Delay status is retrievable**.
     -   We'll want to show on the interface whether the delay is satisfied, and if not how much of a delay is accrued.
-6.  The delay can be zero.
+6.  **The delay can be zero**.
     -   If the user wants a "true" live feed, we don't want to have a second queue to accommodate it.
 
 
@@ -117,45 +116,48 @@ risk of a delay overshoot _(thus also violating the other half of goal one)_. Wi
 "best case" delay; if we receive telemetry faster than we can process and display it, we will quickly build up a surplus
 of unprocessed telemetry frames, resulting in a delay overshoot.
 
-If the end goal were a data collection tool for later analysis of race telemetry (which wouldn't require delay
-functionality) this continuity would likely be paramount, and this solution would likely win out. But, that's not our
+If the end goal were a data collection tool for later analysis of race telemetry _(which wouldn't require delay
+functionality)_ this continuity would likely be paramount, and this solution would certainly win out. But, that's not our
 application, so we need another plan.
 
 
 ### Fixed-size queue {#fixed-size-queue}
 
-This fixed-sized queue leverages two truths in this specific application: TUI users don't expect the the utmost temporal
-resolution for the presentation of data, and only so much data is actually understandable to humans at once. That is to
+This fixed-sized queue leverages two truths in this specific application: TUI users don't expect the utmost temporal
+resolution for data presentation, and only so much data is actually understandable to humans at once. That is to
 say, in this application, there is quickly a limit to how fast the interface's refresh rate actually needs to be. Thus,
 we can fix a refresh rate, for now at 10 Hz.
 
-Given a fixed refresh rate and a configured delay, we can fix the size of the queue in total delay frames required as
-the refresh rate multiplied by the desired delay. Then, we allow dequeue only when all frames are filled, and we "allow"
-_(more on this in the implementation section)_ enqueue only when not all frames are filled. Alongside that, the number of
-frames between the front and back give the total delay currently accrued.
+Given a fixed refresh rate and a configured delay, we can fix the size of the queue in total delay
+frames required as the refresh rate multiplied by the desired delay. Then, we allow dequeue only
+when all frames are filled, and we allow enqueue only when not all frames are filled. Alongside
+that, the number of frames between the front and back give the total delay currently accrued.
 
-As long as we know that we can always process and display an individual frame faster than the refresh rate _(and, we can
--- we set the refresh rate)_, we know that the delay is consistent as per goal one. Similarly, by only "allowing" enqueue
-when the delay is not satisfied, we know that at any given time the frame at the back of the queue is a snapshot in time
-exactly as long ago as the delay is configured, regardless of whether there were received frames between the last
-"snapshot" and the most recent one, satisfying goal two. The "fixed" queue size is using the configured delay, so
-regardless of the current choice we can recalculate it as the configuration changes, satisfying goal three. As you will
-see, the implementation is thread safe, and as noted above we can easily calculate the current status of the delay,
-knocking out goals four and five.
+As long as we know that we can always process and display an individual frame faster than the
+refresh[^fn:8], we know that the delay is consistent as per
+goal one. Similarly, by only allowing enqueue when the delay is not satisfied, we know that at any
+given time the frame at the back of the queue is a snapshot in time exactly as long ago as the delay
+is configured, regardless of whether there were received frames between the last "snapshot" and the
+most recent one, satisfying goal two. The "fixed" queue size is using the configured delay, so
+regardless of the current choice we can recalculate it as the configuration changes, satisfying goal
+three. As you will see, the implementation is thread safe, and as noted above we can easily
+calculate the current status of the delay, knocking out goals four and five.
 
-This leaves us with goal six, and there's an option here to feed two birds with one scone[^fn:8]. See, one problem with this
-proposed solution is a sort of "hitching" problem -- there's this back-and-forth dance where the queue is full, the
-telemetry frame at the front is dequeued and shown, and before a new frame is received the interface tries and now fails
-to dequeue the next frame. To get around this, we can simply add some "slop" to the end of the queue, some relatively
-small number of frames with which we permit the queue to _just barely_ over/undershoot. This way, the interface has a
-handful of delay-satisfactory frames to chew on while waiting for new telemetry to come in, and the telemetry receiver
-thread has some padding to flex in case a burst of frames come in.
+This leaves us with goal six, and there's an option here to feed two birds with one scone[^fn:9]. See, one problem with this proposed solution is a
+sort of "hitching" problem -- there's this back-and-forth dance where the queue is full, the
+telemetry frame at the front is dequeued and shown, and before a new frame is received the interface
+tries and now fails to dequeue the next frame. To get around this, we can simply add some "slop" to
+the end of the queue, some relatively small number of frames with which we permit the queue to _just
+barely_ over/undershoot. This way, the interface has a handful of delay-satisfactory frames to chew
+on while waiting for new telemetry to come in, and the telemetry receiver thread has some padding to
+flex in case a burst of frames come in.
 
-Now we feed the second bird: when we want to go "live", we drop the queue down to just the "slop" frames. With a refresh
-rate of 10 Hz _(that's 10 telemetry frames every second)_ it would take ten slop frames to reach a delay of one second. So,
-as long as we keep the slop frames to at most around five, we can keep the "live" delay down to less than half a
-second. This does reintroduce the hitching problem, but with a truly live feed the hitching is unavoidable as the
-telemetry is again coming in at a varying rate. As far as I have observed in testing, this solution is perfectly
+Now we feed the second bird: when we want to go "live", we drop the queue down to just the "slop"
+frames. With a refresh rate of 10 Hz _(that's 10 telemetry frames every second)_ it would take ten
+slop frames to reach a delay of one second. So, as long as we keep the slop frames to at most around
+five, we can keep the "live" delay down to less than half a second. This does reintroduce the
+hitching problem, but with a truly live feed the hitching is unavoidable as again the telemetry is
+coming in at a varying rate. As far as I have observed in testing, this solution is perfectly
 satisfactory for a live display.
 
 That's all six goals -- on to implementation.
@@ -166,22 +168,17 @@ That's all six goals -- on to implementation.
 _Note: This will reflect what is live in the repo at the time of writing, but I do not guarantee that it will remain
 that way._
 
-One of my primary goals at the outset of this project was to get more experience in multithreaded development broadly as
-well as some experience in how to tackle it whilst staying within the C++ standard library. As such, I'm sure there are
-likely different and possibly better ways to do certain things I've done here. If you notice any, please don't hesitate
-to reach out -- that learning is one of my original goals here!
-
 
 ### The `DelayInfo` dataclass {#the-delayinfo-dataclass}
 
-Whenever either `delay_s` (delay in seconds) or `refresh_hz` (refresh rate in hz), two calculated parameters change:
+Whenever either `delay_s` _(delay in seconds)_ or `refresh_hz` (refresh rate in hz), two calculated parameters change:
 
 1.  `total_frames` : The calculated number of frames in the queue
 2.  `frame_period` : The amount of time represented by one frame
 
 Given how tightly bound these four parameters are, and how frequently they're used together throughout the
 implementation, it's important for thread safety that we prohibit the use of one whilst any other is changing. This is
-all the `DelayInfo` exists to do.
+all `DelayInfo` exists to do.
 
 Omitting some not-so-relevant details, we lay out the class as:
 
@@ -240,7 +237,7 @@ Here, we:
 -   Take the `unique_lock` as mentioned before
 -   Calculate the number of frames needed as the delay multiplied by the refresh rate, adding the slop
     frames
--   Calculate the frame period (total amount of time represented by one frame, in milliseconds) as the
+-   Calculate the frame period _(total amount of time represented by one frame, in milliseconds)_ as the
     reciprocal of the refresh rate
 
 
@@ -248,20 +245,17 @@ Here, we:
 
 Rather than just walk through the class definition, we'll approach it from a more bottom-up
 direction. To start with, we'll go over some background on the queue and then the most important two
-functions of this (or any) queue: enqueueing and dequeueing. Following that, we'll close out by
+functions of this _(or any)_ queue: enqueueing and dequeueing. Following that, we'll close out by
 covering the queue reconfiguration process.
 
 
 #### Queue background {#queue-background}
 
-Since the number of the frames in the queue at any time is just a function of the refresh rate and
-configured delay (and is thus essentially fixed-size), I opted to reach for a single-ended [circular
-queue](https://en.wikipedia.org/wiki/Circular_buffer). With this approach, we simply track enqueue and dequeue indices, adjusting them only when we
-take in or give out a telemetry frame.
-
-To access the queue, the actual position in the queue is the the index reduced modulo the queue size
-(total number of delay frames). This way, the indices we track simultaneously tell us both where to
-access the queue at, and the amount of time between the front and back -- the total delay accrued.
+Since the number of the frames in the queue at any time is essentially fixed-size, I opted to reach
+for a single-ended [circular queue](https://en.wikipedia.org/wiki/Circular_buffer). With this approach, we simply track monotonically increasing
+enqueue and dequeue indices, adjusting them only when we take in or give out a telemetry
+frame. Then, to access the queue, the actual position is calculated as the index reduced modulo the
+queue size.
 
 As highlighted earlier, a primary goal was to be able to split the "producer" and "consumer" logic
 between different threads; one to receive telemetry, the other to process and display it. With this
@@ -303,7 +297,7 @@ TelemetryQueue::dequeue() noexcept {
 
 First, we double check that the dequeue index is not ahead of the enqueue index, as this is
 considered "impossible" -- if this has happened, we are in an unrecoverrable state. As such, we
-check this with an assertion[^fn:9]:
+check this with an assertion[^fn:10]:
 
 ```cpp
 assert(_deq_idx <= _enq_idx);
@@ -346,13 +340,17 @@ auto &cur_frame = _frames.at(_deq_idx % _frames.size());
 std::scoped_lock single_lock(cur_frame.mtx);
 ```
 
-Now we check if the frame retrieved is actually present. We return frames as a
-`std::unique_ptr<TelemetryFrame>`, when we give them to the caller we are moving[^fn:10] them out of the queue, and
+Now we check if the frame retrieved is actually present. Given that we return frames as a
+`std::unique_ptr<TelemetryFrame>`, when we give them to the caller we are moving[^fn:11] them out of the queue. Then,
 since `std::unique_ptr`'s move constructor sets the moved-from ptr to `nullptr`, a frame which is not
 yet populated will be `nullptr`. As such, if the frame we retrieve is `nullptr`, it means that we have
 somehow advanced to a frame which is not ready, so the delay is not yet satisied. This should
-generally not happen, but it is good practice to check and be sure when using `unique_ptr` (or
-pointers in general).
+generally not happen, but it is good practice to check pointers regardless.
+
+The use of `std::unique_ptr` for handing around the frames is a vestige of prior unrelated troubleshooting
+regarding the `TelemetryFrame`'s move constructor. At this point it's not necessary, and is probably a
+target for future refactor/cleanup. With that said, the indirection cost of a pointer when accessing
+the frame is negligible here, so to change it would be only for cleanliness _(still a very worthy cause)_.
 
 ```cpp
 if (cur_frame.frame == nullptr)
@@ -399,8 +397,8 @@ TelemetryQueue::dequeue() noexcept {
 
 #### Enqueue {#enqueue}
 
-Since the enqueue logic is very similar to dequeue, we'll start with the full method and dissect
-where they differ.
+Since the enqueue logic mirrors that of dequeue, we'll start with the full method and dissect where
+they differ.
 
 ```cpp
 std::expected<void, TelemetryQueue::Err>
@@ -450,14 +448,11 @@ nothing, and if not, we return the previously mentioned `Err` with the correspon
 
 #### Queue reconfiguration {#queue-reconfiguration}
 
-Here is where we'll handle rebuilding the delay upon delay reconfiguration. Broadly, we need to be
-able to accomplish two things:
-
-1.  If the delay is being decreased, we need to shrink the queue size.
-2.  If the delay is being increased, we need to grow the queue size.
+Here is where we'll handle rebuilding the delay upon delay reconfiguration. If the delay is
+decreased, we need to shrink the queue size, and likewise grow it if the delay is increased.
 
 It would be a very frustrating user experience if the full delay had to be re-accrued upon every
-delay change. As such, we need to preserve whatever amount of the delay is relevant when rebuilding
+delay change, so we need to preserve whatever amount of the delay is relevant when rebuilding
 the delay -- we will come back to this shortly.
 
 As mentioned before, delay reconfiguration is the only time the full queue's mutex needs to block
@@ -473,7 +468,7 @@ void TelemetryQueue::rebuild_delay() noexcept {
 
 Next we calculate the new queue size, and then how many frames forward we need to skip.
 If the delay is increasing, the frame at the front of the queue _(next to be dequeued)_ is now too
-recent, and thus no skip is necessary. If the delay is being decreased, the front of the queue is
+recent, and thus no skip is necessary. If the delay is decreasing, the front of the queue is
 now too old, requiring us to skip some number of frames ahead.
 
 ```cpp
@@ -488,8 +483,8 @@ size_t skip_frames = (new_delay_frames < prev_delay_frames)
 
 Since C++'s `std::mutex` is neither copyable nor movable, and the queue contains a wrapped version of
 `TelemetryFrame` adding a mutex, the `std::vector` which underlies the queue is also neither copyable
-nor movable. It is for this reason that we cannot simply extend the existing vector -- we instead
-create a new one and move preserved frames over.
+nor movable. Hence, we cannot simply extend the existing vector -- we instead create a new one and
+move preserved frames over.
 
 So, first we create the new vector with the new length:
 
@@ -498,7 +493,7 @@ std::vector<LockedFrame> new_frames(new_delay_frames);
 ```
 
 Then, if this is the initial configuration of the queue, there are no frames to preserve, and we can
-just set our vector and be done:
+just set our vector and return early:
 
 ```cpp
 if (_enq_idx == 0) {
@@ -529,7 +524,7 @@ if (prev_delay_frames > 0) {
 }
 ```
 
-Finally, we move the new vector into `_frames` and be done:
+Finally, we move the new vector into `_frames` and are done:
 
 ```cpp
 _frames = std::move(new_frames);
@@ -608,7 +603,7 @@ more effectively defend the solution seen here than the dynamic solution I had l
 went back and once again implemented yet another telemetry queue, now taking a little more time to
 make sure every decision was grounded in a set of end goals. What resulted was definitely rough
 around the edges and took some effort to smooth it out -- that's unavoidable. But, with that effort,
-I eventually got to a point where I finally _couldn't_ trick the delay into failing. Surely there are
+I eventually got to a point where I finally _couldn't_ trick the delay into failing. Surely, there are
 latent issues which will show themselves in due time, but what I have now is something that meets
 the goals I laid out, built following a design process I executed.
 
@@ -619,17 +614,19 @@ this one.
 [^fn:2]: yeah this was lowkey track limits but it's still awesome
 [^fn:3]: it's me I am said viewer
 [^fn:4]: this is a really cool
-    explanation of this delay problem and why it's not going anywhere <https://www.youtube.com/watch?v=CgcXli8NxHw&t=301s>
+    explanation of this delay problem and why it's not going anywhere <https://www.youtube.com/watch?v=CgcXli8NxHw>
 [^fn:5]: [multiviewer](https://multiviewer.app) is an excellent tool and works across many series
 [^fn:6]: Also, your observed broadcast delay fluctuates over time --
     if you want calibrate your delay to less than 0.5s/500ms you're likely going to have to spend a lot of time
     monitoring and readjusting it. I personally would like to just set my telemetry delay to be _just_ longer than my
     broadcast delay and accept that what I see on my leaderboard is just barely behind what I see on TV.
 [^fn:7]: telemetry is sent rather quickly, with each frame representing at most slightly less than a second
-[^fn:8]: this has, for better or
-    worse, worked its way into my lexicon: <https://x.com/peta/status/1070066047414345729>
-[^fn:9]: I cannot wait to rewrite this and make this a
+[^fn:8]: and, we can -- we pick the refresh rate
+[^fn:9]: this
+    has, for better or worse, worked its way into my lexicon:
+    <https://x.com/peta/status/1070066047414345729>
+[^fn:10]: I cannot wait to rewrite this and make this a
     [pre and post condition](https://en.cppreference.com/cpp/language/contracts) once C++26 is mature
-[^fn:10]: here is a decent
+[^fn:11]: here is a decent
     explainer on those new to C++'s move semantics:
     <https://stackoverflow.com/questions/3106110/what-is-move-semantics>
