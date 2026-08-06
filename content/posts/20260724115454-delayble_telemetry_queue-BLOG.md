@@ -1,7 +1,7 @@
 +++
 title = "Delayable Telemetry Queue | Design Notes - indy-tui"
 author = ["Cole"]
-lastmod = 2026-08-03T12:53:50-04:00
+lastmod = 2026-08-06T08:23:40-04:00
 tags = ["design-notes", "indy-tui", "cpp"]
 draft = false
 katex = false
@@ -10,15 +10,14 @@ katex = false
 As the core impetus for my most recent _(and ongoing)_ project, I think a break down of my design and implementation of
 the delay queue used in [#indy-tui](/tags/indy-tui) is perfectly befitting of a first post.
 
-I'll start with a little background[^fn:1] on the project, follwed by a
+I'll start with a little background on the project, follwed by a
 little more on the problem I was trying to solve and why I'm/ taking a crack at it. Then, I'll touch on the two main
 approaches I considered, what primary goals I was trying to meet, and ultimately which of the approaches stuck. Finally,
 I'll go a little more technically in-depth on the implementation I have today.
 
-If you are a motorsports fan, the non-technical part(s) of this post should be right up your alley.
-
-If you aren't, fear not -- the aforementioned non-technical part(s) should be quite limited. With that said, [why not
-just... become one](https://www.youtube.com/watch?v=Ubt9vnioGyA)? [I mean it's pretty cool](https://www.youtube.com/watch?v=uKEW7cCxxjk)[^fn:2].
+If you are a motorsports fan, the non-technical part(s) of this post should be right up your
+alley. If you aren't, fear not -- the aforementioned non-technical part(s) should be quite
+limited. With that said, [why not just... become one](https://www.youtube.com/watch?v=Ubt9vnioGyA)? [I mean it's pretty cool](https://www.youtube.com/watch?v=uKEW7cCxxjk)[^fn:1].
 
 This is _a_ solution, but certainly not _the_ solution -- my hope is to illustrate why I picked this one.
 
@@ -42,28 +41,28 @@ more effectively, the broadcaster will include more live information on the lead
 gap to the leader, the number of laps since they last pitted, or the tire compound they're currently equipped with.
 
 For the more observant viewer, the leaderboard goes a long way in filling the gaps inherent to motorsports
-coverage. But, for the more impatiently observant viewer[^fn:3], this presents a new pain point
+coverage. But, for the more impatiently observant viewer[^fn:2], this presents a new pain point
 in the broadcast's production: _rarely_ is the leaderboard showing the information you would like to know at any given
 time. Thankfully, today most premier motorsports series provide a much more thorough live leaderboard separate from the
 broadcast, often by app, which displays most of the information at once. With this alternative, said impatiently
-observant viewers[^fn:3] should be satisfied -- they have all of the information when they want it, even during
+observant viewers[^fn:2] should be satisfied -- they have all of the information when they want it, even during
 commercials. So... they are satisfied right? Right?
 
 Have you ever had an upstairs neighbor who somehow has a slightly faster stream of the football game that you both are
 watching? Watched a pass thrown and had all suspense robbed from you as said neighbor is celebrating the touchdown when,
-for you, the ball is still in the air? Unfortunately, unless you are lucky enough to somehow[^fn:4]
+for you, the ball is still in the air? Unfortunately, unless you are lucky enough to somehow[^fn:3]
 have a broadcast with next to zero delay, this upstairs neighbor and these online leaderboard options are one in the
 same -- the online leaderboards have a very neglible delay, while broadcasts do not. Using what the series gives you,
 your two options are to either just take the on screen leaderboard and accept the lack of spoilers over getting the
 information you want, or to use their online leaderboard and get the information desired but spoilers along with it.
 
 All that's really needed here is a way to delay the leaderboard information _(from here on "telemetry")_ by a configurable
-amount. While I don't know of any major series which offers this directly, there is third party tooling which does[^fn:5]. Although the options I've tried out do work, I've
+amount. While I don't know of any major series which offers this directly, there is third party tooling which does[^fn:4]. Although the options I've tried out do work, I've
 had a few main gripes:
 
 1.  **The delay is configured in milliseconds**. When I'm trying to measure a delay while watching a race, I
     personally don't want to bother doing the math of adding the right number of zeros to the rough number I've
-    observed. At most, I want control down to half-seconds[^fn:6].
+    observed. At most, I want control down to half-seconds[^fn:5].
 2.  **When accruing a delay, the interface stalls and doesn't communicate whether it is broken, there is no telemetry
     coming in, or it is simply building up a delay**. I would like a small portion of the interface to show the status of
     the delay, for example how much of a delay is currently built up.
@@ -73,16 +72,17 @@ had a few main gripes:
     world that has the above issues, I will happily fork the project and make it most comfortable for myself. Without
     that ability, I am left to either suck it up or try my hand at a solution.
 
-    So, try my hand I did.
+So, try my hand I did.
 
 
 ### Goals {#goals}
 
 1.  **The delay is consistent**.
     -   There should be strong guards against undershoot and overshoot.
-2.  **Exact delay is more important that continuity of telemetry**.
-    -   There will be stutters in the telemetry we receive. I care that what is at the "live" end of the delay queue is
-        exactly what is "live" much more than I care that the telemetry shown is continuous (w/o skipping).
+2.  **Exact delay is more important than continuity of telemetry**.
+    -   There will be stutters in the telemetry we receive. I care that the duration between front and
+        back of the queue matches the desired delay much more than I can that the telemetry shown is
+        continuous _(w/o skipping)_
 3.  **The delay is configured in second increments**.
     -   If implemented well, this is easily updated later to be half-second _(or smaller)_ increments.
 4.  **The queue is thread-safe**.
@@ -109,7 +109,7 @@ impossible. This solution also benefits from a fairly straightforward implementa
 top of the C++ standard library.
 
 A byproduct of this implementation is that as long as we receive a given telemetry frame, the user will
-"see"[^fn:7] every
+"see"[^fn:6] every
 frame. Note that I described this as a byproduct rather than a benefit -- this actually violates goal two. It is
 unavoidable that the telemetry we receive will be at an inconsistent rate, so by ensuring this continuity we run the
 risk of a delay overshoot _(thus also violating the other half of goal one)_. With this solution, we end up implementing a
@@ -131,10 +131,10 @@ we can fix a refresh rate, for now at 10 Hz.
 Given a fixed refresh rate and a configured delay, we can fix the size of the queue in total delay
 frames required as the refresh rate multiplied by the desired delay. Then, we allow dequeue only
 when all frames are filled, and we allow enqueue only when not all frames are filled. Alongside
-that, the number of frames between the front and back give the total delay currently accrued.
+that, the number of frames between the front and back gives the total delay currently accrued.
 
 As long as we know that we can always process and display an individual frame faster than the
-refresh[^fn:8], we know that the delay is consistent as per
+refresh[^fn:7], we know that the delay is consistent as per
 goal one. Similarly, by only allowing enqueue when the delay is not satisfied, we know that at any
 given time the frame at the back of the queue is a snapshot in time exactly as long ago as the delay
 is configured, regardless of whether there were received frames between the last "snapshot" and the
@@ -143,7 +143,7 @@ regardless of the current choice we can recalculate it as the configuration chan
 three. As you will see, the implementation is thread safe, and as noted above we can easily
 calculate the current status of the delay, knocking out goals four and five.
 
-This leaves us with goal six, and there's an option here to feed two birds with one scone[^fn:9]. See, one problem with this proposed solution is a
+This leaves us with goal six, and there's an option here to feed two birds with one scone[^fn:8]. See, one problem with this proposed solution is a
 sort of "hitching" problem -- there's this back-and-forth dance where the queue is full, the
 telemetry frame at the front is dequeued and shown, and before a new frame is received the interface
 tries and now fails to dequeue the next frame. To get around this, we can simply add some "slop" to
@@ -171,7 +171,7 @@ that way._
 
 ### The `DelayInfo` dataclass {#the-delayinfo-dataclass}
 
-Whenever either `delay_s` _(delay in seconds)_ or `refresh_hz` (refresh rate in hz), two calculated parameters change:
+Whenever either `delay_s` _(delay in seconds)_ or `refresh_hz` _(refresh rate in hz)_, two calculated parameters change:
 
 1.  `total_frames` : The calculated number of frames in the queue
 2.  `frame_period` : The amount of time represented by one frame
@@ -213,10 +213,10 @@ public:
 
 The most important detail here is the `shared_mutex`. Since `recalculate_params` will need to change
 multiple paramaters, we need to guard against any getters/setters accessing any parameters during
-recalculation. But, since the getters don't need to modify and thus don't need to block other
-getters, we simply take a `unique_lock` of `_mtx` in the setters and `recalculate_params`, and take a
-`shared_lock` in the getters. Given how relatively infrequently the delay configuration should be
-changing,  the getters should very rarely fail to acquire their lock.
+recalculation. But, since the getters don't need to change any state and thus don't need to block
+other getters, we simply take a `unique_lock` of `_mtx` in the setters and `recalculate_params`, and take
+a `shared_lock` in the getters. Given how relatively infrequently the delay configuration should be
+changing, `_mtx` should rarely be contested.
 
 We'll skip going over the implementation of the getters and setters, as `recalculate_params` should
 give a good idea:
@@ -297,7 +297,7 @@ TelemetryQueue::dequeue() noexcept {
 
 First, we double check that the dequeue index is not ahead of the enqueue index, as this is
 considered "impossible" -- if this has happened, we are in an unrecoverrable state. As such, we
-check this with an assertion[^fn:10]:
+check this with an assertion[^fn:9]:
 
 ```cpp
 assert(_deq_idx <= _enq_idx);
@@ -341,7 +341,7 @@ std::scoped_lock single_lock(cur_frame.mtx);
 ```
 
 Now we check if the frame retrieved is actually present. Given that we return frames as a
-`std::unique_ptr<TelemetryFrame>`, when we give them to the caller we are moving[^fn:11] them out of the queue. Then,
+`std::unique_ptr<TelemetryFrame>`, when we give them to the caller we are moving[^fn:10] them out of the queue. Then,
 since `std::unique_ptr`'s move constructor sets the moved-from ptr to `nullptr`, a frame which is not
 yet populated will be `nullptr`. As such, if the frame we retrieve is `nullptr`, it means that we have
 somehow advanced to a frame which is not ready, so the delay is not yet satisied. This should
@@ -610,23 +610,23 @@ the goals I laid out, built following a design process I executed.
 Once again: this is _a_ solution, certainly not _the_ solution. Hopefully, it's now clear why I've picked
 this one.
 
-[^fn:1]: A proper post for the project is soon to come
-[^fn:2]: yeah this was lowkey track limits but it's still awesome
-[^fn:3]: it's me I am said viewer
-[^fn:4]: this is a really cool
+[^fn:1]: yeah this was
+    lowkey track limits but it's still awesome
+[^fn:2]: it's me I am said viewer
+[^fn:3]: this is a really cool
     explanation of this delay problem and why it's not going anywhere <https://www.youtube.com/watch?v=CgcXli8NxHw>
-[^fn:5]: [multiviewer](https://multiviewer.app) is an excellent tool and works across many series
-[^fn:6]: Also, your observed broadcast delay fluctuates over time --
+[^fn:4]: [multiviewer](https://multiviewer.app) is an excellent tool and works across many series
+[^fn:5]: Also, your observed broadcast delay fluctuates over time --
     if you want calibrate your delay to less than 0.5s/500ms you're likely going to have to spend a lot of time
     monitoring and readjusting it. I personally would like to just set my telemetry delay to be _just_ longer than my
     broadcast delay and accept that what I see on my leaderboard is just barely behind what I see on TV.
-[^fn:7]: telemetry is sent rather quickly, with each frame representing at most slightly less than a second
-[^fn:8]: and, we can -- we pick the refresh rate
-[^fn:9]: this
+[^fn:6]: telemetry is sent rather quickly, with each frame representing at most slightly less than a second
+[^fn:7]: and, we can -- we pick the refresh rate
+[^fn:8]: this
     has, for better or worse, worked its way into my lexicon:
     <https://x.com/peta/status/1070066047414345729>
-[^fn:10]: I cannot wait to rewrite this and make this a
+[^fn:9]: I cannot wait to rewrite this and make this a
     [pre and post condition](https://en.cppreference.com/cpp/language/contracts) once C++26 is mature
-[^fn:11]: here is a decent
+[^fn:10]: here is a decent
     explainer on those new to C++'s move semantics:
     <https://stackoverflow.com/questions/3106110/what-is-move-semantics>
