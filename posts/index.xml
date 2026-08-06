@@ -1,28 +1,28 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>schelcc | blog on schelcc</title><link>https://schelcc.dev/posts/index.xml</link><description>Recent content in schelcc | blog on schelcc</description><generator>Hugo</generator><language/><lastBuildDate>Mon, 03 Aug 2026 12:53:50 -0400</lastBuildDate><atom:link href="https://schelcc.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Mon, 03 Aug 2026 12:53:50 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>schelcc | blog on schelcc</title><link>https://schelcc.dev/posts/index.xml</link><description>Recent content in schelcc | blog on schelcc</description><generator>Hugo</generator><language/><lastBuildDate>Thu, 06 Aug 2026 08:23:40 -0400</lastBuildDate><atom:link href="https://schelcc.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
 the delay queue used in &lt;a
  href="https://schelcc.dev/tags/indy-tui"
  
  
 &gt;#indy-tui&lt;/a&gt; is perfectly befitting of a first post.&lt;/p&gt;
-&lt;p&gt;I&amp;rsquo;ll start with a little background&lt;sup id="fnref:1"&gt;&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref"&gt;1&lt;/a&gt;&lt;/sup&gt; on the project, follwed by a
+&lt;p&gt;I&amp;rsquo;ll start with a little background on the project, follwed by a
 little more on the problem I was trying to solve and why I&amp;rsquo;m/ taking a crack at it. Then, I&amp;rsquo;ll touch on the two main
 approaches I considered, what primary goals I was trying to meet, and ultimately which of the approaches stuck. Finally,
 I&amp;rsquo;ll go a little more technically in-depth on the implementation I have today.&lt;/p&gt;
-&lt;p&gt;If you are a motorsports fan, the non-technical part(s) of this post should be right up your alley.&lt;/p&gt;
-&lt;p&gt;If you aren&amp;rsquo;t, fear not &amp;ndash; the aforementioned non-technical part(s) should be quite limited. With that said, &lt;a
+&lt;p&gt;If you are a motorsports fan, the non-technical part(s) of this post should be right up your
+alley. If you aren&amp;rsquo;t, fear not &amp;ndash; the aforementioned non-technical part(s) should be quite
+limited. With that said, &lt;a
  href="https://www.youtube.com/watch?v=Ubt9vnioGyA"
  
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;why not
-just&amp;hellip; become one&lt;/a&gt;? &lt;a
+&gt;why not just&amp;hellip; become one&lt;/a&gt;? &lt;a
  href="https://www.youtube.com/watch?v=uKEW7cCxxjk"
  
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;I mean it&amp;rsquo;s pretty cool&lt;/a&gt;&lt;sup id="fnref:2"&gt;&lt;a href="#fn:2" class="footnote-ref" role="doc-noteref"&gt;2&lt;/a&gt;&lt;/sup&gt;.&lt;/p&gt;
+&gt;I mean it&amp;rsquo;s pretty cool&lt;/a&gt;&lt;sup id="fnref:1"&gt;&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref"&gt;1&lt;/a&gt;&lt;/sup&gt;.&lt;/p&gt;
 &lt;p&gt;This is &lt;em&gt;a&lt;/em&gt; solution, but certainly not &lt;em&gt;the&lt;/em&gt; solution &amp;ndash; my hope is to illustrate why I picked this one.&lt;/p&gt;
 &lt;h2 id="background"&gt;Background&lt;a href="#background" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h2&gt;
@@ -40,44 +40,36 @@ spectator assist devices is inarguably the on screen leaderboard &amp;ndash; a l
 more effectively, the broadcaster will include more live information on the leaderboard, data points like each driver&amp;rsquo;s
 gap to the leader, the number of laps since they last pitted, or the tire compound they&amp;rsquo;re currently equipped with.&lt;/p&gt;
 &lt;p&gt;For the more observant viewer, the leaderboard goes a long way in filling the gaps inherent to motorsports
-coverage. But, for the more impatiently observant viewer&lt;sup id="fnref:3"&gt;&lt;a href="#fn:3" class="footnote-ref" role="doc-noteref"&gt;3&lt;/a&gt;&lt;/sup&gt;, this presents a new pain point
+coverage. But, for the more impatiently observant viewer&lt;sup id="fnref:2"&gt;&lt;a href="#fn:2" class="footnote-ref" role="doc-noteref"&gt;2&lt;/a&gt;&lt;/sup&gt;, this presents a new pain point
 in the broadcast&amp;rsquo;s production: &lt;em&gt;rarely&lt;/em&gt; is the leaderboard showing the information you would like to know at any given
 time. Thankfully, today most premier motorsports series provide a much more thorough live leaderboard separate from the
 broadcast, often by app, which displays most of the information at once. With this alternative, said impatiently
-observant viewers&lt;sup id="fnref1:3"&gt;&lt;a href="#fn:3" class="footnote-ref" role="doc-noteref"&gt;3&lt;/a&gt;&lt;/sup&gt; should be satisfied &amp;ndash; they have all of the information when they want it, even during
+observant viewers&lt;sup id="fnref1:2"&gt;&lt;a href="#fn:2" class="footnote-ref" role="doc-noteref"&gt;2&lt;/a&gt;&lt;/sup&gt; should be satisfied &amp;ndash; they have all of the information when they want it, even during
 commercials. So&amp;hellip; they are satisfied right? Right?&lt;/p&gt;
 &lt;p&gt;Have you ever had an upstairs neighbor who somehow has a slightly faster stream of the football game that you both are
 watching? Watched a pass thrown and had all suspense robbed from you as said neighbor is celebrating the touchdown when,
-for you, the ball is still in the air? Unfortunately, unless you are lucky enough to somehow&lt;sup id="fnref:4"&gt;&lt;a href="#fn:4" class="footnote-ref" role="doc-noteref"&gt;4&lt;/a&gt;&lt;/sup&gt;
+for you, the ball is still in the air? Unfortunately, unless you are lucky enough to somehow&lt;sup id="fnref:3"&gt;&lt;a href="#fn:3" class="footnote-ref" role="doc-noteref"&gt;3&lt;/a&gt;&lt;/sup&gt;
 have a broadcast with next to zero delay, this upstairs neighbor and these online leaderboard options are one in the
 same &amp;ndash; the online leaderboards have a very neglible delay, while broadcasts do not. Using what the series gives you,
 your two options are to either just take the on screen leaderboard and accept the lack of spoilers over getting the
 information you want, or to use their online leaderboard and get the information desired but spoilers along with it.&lt;/p&gt;
 &lt;p&gt;All that&amp;rsquo;s really needed here is a way to delay the leaderboard information &lt;em&gt;(from here on &amp;ldquo;telemetry&amp;rdquo;)&lt;/em&gt; by a configurable
-amount. While I don&amp;rsquo;t know of any major series which offers this directly, there is third party tooling which does&lt;sup id="fnref:5"&gt;&lt;a href="#fn:5" class="footnote-ref" role="doc-noteref"&gt;5&lt;/a&gt;&lt;/sup&gt;. Although the options I&amp;rsquo;ve tried out do work, I&amp;rsquo;ve
+amount. While I don&amp;rsquo;t know of any major series which offers this directly, there is third party tooling which does&lt;sup id="fnref:4"&gt;&lt;a href="#fn:4" class="footnote-ref" role="doc-noteref"&gt;4&lt;/a&gt;&lt;/sup&gt;. Although the options I&amp;rsquo;ve tried out do work, I&amp;rsquo;ve
 had a few main gripes:&lt;/p&gt;
 &lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;The delay is configured in milliseconds&lt;/strong&gt;. When I&amp;rsquo;m trying to measure a delay while watching a race, I
+&lt;li&gt;&lt;strong&gt;The delay is configured in milliseconds&lt;/strong&gt;. When I&amp;rsquo;m trying to measure a delay while watching a race, I
 personally don&amp;rsquo;t want to bother doing the math of adding the right number of zeros to the rough number I&amp;rsquo;ve
-observed. At most, I want control down to half-seconds&lt;sup id="fnref:6"&gt;&lt;a href="#fn:6" class="footnote-ref" role="doc-noteref"&gt;6&lt;/a&gt;&lt;/sup&gt;.&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;When accruing a delay, the interface stalls and doesn&amp;rsquo;t communicate whether it is broken, there is no telemetry
+observed. At most, I want control down to half-seconds&lt;sup id="fnref:5"&gt;&lt;a href="#fn:5" class="footnote-ref" role="doc-noteref"&gt;5&lt;/a&gt;&lt;/sup&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;When accruing a delay, the interface stalls and doesn&amp;rsquo;t communicate whether it is broken, there is no telemetry
 coming in, or it is simply building up a delay&lt;/strong&gt;. I would like a small portion of the interface to show the status of
-the delay, for example how much of a delay is currently built up.&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;The delay overshoots or undershoots over long spans&lt;/strong&gt;. I have observed times where after adjusting the delay back and
-forth, it is not uncommon to wind up with the observed delay markedly longer than the configured delay.&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;The tools are not open source&lt;/strong&gt;. Ultimately, this is the most consequential gripe &amp;ndash; if I am the only person in the
+the delay, for example how much of a delay is currently built up.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;The delay overshoots or undershoots over long spans&lt;/strong&gt;. I have observed times where after adjusting the delay back and
+forth, it is not uncommon to wind up with the observed delay markedly longer than the configured delay.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;The tools are not open source&lt;/strong&gt;. Ultimately, this is the most consequential gripe &amp;ndash; if I am the only person in the
 world that has the above issues, I will happily fork the project and make it most comfortable for myself. Without
-that ability, I am left to either suck it up or try my hand at a solution.&lt;/p&gt;
-&lt;p&gt;So, try my hand I did.&lt;/p&gt;
-&lt;/li&gt;
+that ability, I am left to either suck it up or try my hand at a solution.&lt;/li&gt;
 &lt;/ol&gt;
+&lt;p&gt;So, try my hand I did.&lt;/p&gt;
 &lt;h3 id="goals"&gt;Goals&lt;a href="#goals" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h3&gt;
 &lt;ol&gt;
@@ -86,10 +78,11 @@ that ability, I am left to either suck it up or try my hand at a solution.&lt;/p
 &lt;li&gt;There should be strong guards against undershoot and overshoot.&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Exact delay is more important that continuity of telemetry&lt;/strong&gt;.
+&lt;li&gt;&lt;strong&gt;Exact delay is more important than continuity of telemetry&lt;/strong&gt;.
 &lt;ul&gt;
-&lt;li&gt;There will be stutters in the telemetry we receive. I care that what is at the &amp;ldquo;live&amp;rdquo; end of the delay queue is
-exactly what is &amp;ldquo;live&amp;rdquo; much more than I care that the telemetry shown is continuous (w/o skipping).&lt;/li&gt;
+&lt;li&gt;There will be stutters in the telemetry we receive. I care that the duration between front and
+back of the queue matches the desired delay much more than I can that the telemetry shown is
+continuous &lt;em&gt;(w/o skipping)&lt;/em&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;The delay is configured in second increments&lt;/strong&gt;.
@@ -125,7 +118,7 @@ frames only if the duration between now and that frame&amp;rsquo;s timestamp sat
 impossible. This solution also benefits from a fairly straightforward implementation, likely requiring minimal work on
 top of the C++ standard library.&lt;/p&gt;
 &lt;p&gt;A byproduct of this implementation is that as long as we receive a given telemetry frame, the user will
-&amp;ldquo;see&amp;rdquo;&lt;sup id="fnref:7"&gt;&lt;a href="#fn:7" class="footnote-ref" role="doc-noteref"&gt;7&lt;/a&gt;&lt;/sup&gt; every
+&amp;ldquo;see&amp;rdquo;&lt;sup id="fnref:6"&gt;&lt;a href="#fn:6" class="footnote-ref" role="doc-noteref"&gt;6&lt;/a&gt;&lt;/sup&gt; every
 frame. Note that I described this as a byproduct rather than a benefit &amp;ndash; this actually violates goal two. It is
 unavoidable that the telemetry we receive will be at an inconsistent rate, so by ensuring this continuity we run the
 risk of a delay overshoot &lt;em&gt;(thus also violating the other half of goal one)&lt;/em&gt;. With this solution, we end up implementing a
@@ -143,9 +136,9 @@ we can fix a refresh rate, for now at 10 Hz.&lt;/p&gt;
 &lt;p&gt;Given a fixed refresh rate and a configured delay, we can fix the size of the queue in total delay
 frames required as the refresh rate multiplied by the desired delay. Then, we allow dequeue only
 when all frames are filled, and we allow enqueue only when not all frames are filled. Alongside
-that, the number of frames between the front and back give the total delay currently accrued.&lt;/p&gt;
+that, the number of frames between the front and back gives the total delay currently accrued.&lt;/p&gt;
 &lt;p&gt;As long as we know that we can always process and display an individual frame faster than the
-refresh&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;, we know that the delay is consistent as per
+refresh&lt;sup id="fnref:7"&gt;&lt;a href="#fn:7" class="footnote-ref" role="doc-noteref"&gt;7&lt;/a&gt;&lt;/sup&gt;, we know that the delay is consistent as per
 goal one. Similarly, by only allowing enqueue when the delay is not satisfied, we know that at any
 given time the frame at the back of the queue is a snapshot in time exactly as long ago as the delay
 is configured, regardless of whether there were received frames between the last &amp;ldquo;snapshot&amp;rdquo; and the
@@ -153,7 +146,7 @@ most recent one, satisfying goal two. The &amp;ldquo;fixed&amp;rdquo; queue size
 regardless of the current choice we can recalculate it as the configuration changes, satisfying goal
 three. As you will see, the implementation is thread safe, and as noted above we can easily
 calculate the current status of the delay, knocking out goals four and five.&lt;/p&gt;
-&lt;p&gt;This leaves us with goal six, and there&amp;rsquo;s an option here to feed two birds with one scone&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;. See, one problem with this proposed solution is a
+&lt;p&gt;This leaves us with goal six, and there&amp;rsquo;s an option here to feed two birds with one scone&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;. See, one problem with this proposed solution is a
 sort of &amp;ldquo;hitching&amp;rdquo; problem &amp;ndash; there&amp;rsquo;s this back-and-forth dance where the queue is full, the
 telemetry frame at the front is dequeued and shown, and before a new frame is received the interface
 tries and now fails to dequeue the next frame. To get around this, we can simply add some &amp;ldquo;slop&amp;rdquo; to
@@ -175,7 +168,7 @@ satisfactory for a live display.&lt;/p&gt;
 that way.&lt;/em&gt;&lt;/p&gt;
 &lt;h3 id="the-delayinfo-dataclass"&gt;The &lt;code&gt;DelayInfo&lt;/code&gt; dataclass&lt;a href="#the-delayinfo-dataclass" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h3&gt;
-&lt;p&gt;Whenever either &lt;code&gt;delay_s&lt;/code&gt; &lt;em&gt;(delay in seconds)&lt;/em&gt; or &lt;code&gt;refresh_hz&lt;/code&gt; (refresh rate in hz), two calculated parameters change:&lt;/p&gt;
+&lt;p&gt;Whenever either &lt;code&gt;delay_s&lt;/code&gt; &lt;em&gt;(delay in seconds)&lt;/em&gt; or &lt;code&gt;refresh_hz&lt;/code&gt; &lt;em&gt;(refresh rate in hz)&lt;/em&gt;, two calculated parameters change:&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;code&gt;total_frames&lt;/code&gt; : The calculated number of frames in the queue&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;frame_period&lt;/code&gt; : The amount of time represented by one frame&lt;/li&gt;
@@ -212,10 +205,10 @@ all &lt;code&gt;DelayInfo&lt;/code&gt; exists to do.&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The most important detail here is the &lt;code&gt;shared_mutex&lt;/code&gt;. Since &lt;code&gt;recalculate_params&lt;/code&gt; will need to change
 multiple paramaters, we need to guard against any getters/setters accessing any parameters during
-recalculation. But, since the getters don&amp;rsquo;t need to modify and thus don&amp;rsquo;t need to block other
-getters, we simply take a &lt;code&gt;unique_lock&lt;/code&gt; of &lt;code&gt;_mtx&lt;/code&gt; in the setters and &lt;code&gt;recalculate_params&lt;/code&gt;, and take a
-&lt;code&gt;shared_lock&lt;/code&gt; in the getters. Given how relatively infrequently the delay configuration should be
-changing, the getters should very rarely fail to acquire their lock.&lt;/p&gt;
+recalculation. But, since the getters don&amp;rsquo;t need to change any state and thus don&amp;rsquo;t need to block
+other getters, we simply take a &lt;code&gt;unique_lock&lt;/code&gt; of &lt;code&gt;_mtx&lt;/code&gt; in the setters and &lt;code&gt;recalculate_params&lt;/code&gt;, and take
+a &lt;code&gt;shared_lock&lt;/code&gt; in the getters. Given how relatively infrequently the delay configuration should be
+changing, &lt;code&gt;_mtx&lt;/code&gt; should rarely be contested.&lt;/p&gt;
 &lt;p&gt;We&amp;rsquo;ll skip going over the implementation of the getters and setters, as &lt;code&gt;recalculate_params&lt;/code&gt; should
 give a good idea:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;void&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;recalculate&lt;/span&gt;() {
@@ -292,7 +285,7 @@ can mark the method as &lt;code&gt;noexcept&lt;/code&gt;.&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;TelemetryQueue&lt;span style="color:#f92672"&gt;::&lt;/span&gt;dequeue() &lt;span style="color:#66d9ef"&gt;noexcept&lt;/span&gt; {
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;First, we double check that the dequeue index is not ahead of the enqueue index, as this is
 considered &amp;ldquo;impossible&amp;rdquo; &amp;ndash; if this has happened, we are in an unrecoverrable state. As such, we
-check this with an assertion&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
+check this with an assertion&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;assert(_deq_idx &lt;span style="color:#f92672"&gt;&amp;lt;=&lt;/span&gt; _enq_idx);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Next we check that the delay is satisfied. The call to &lt;code&gt;delay_info&lt;/code&gt;&amp;rsquo;s &lt;code&gt;get_min_delay_frames()&lt;/code&gt; just
 retrieves the minimum number of frames between the enqueue and dequeue indices such that the delay
@@ -326,7 +319,7 @@ on its mutex &lt;em&gt;(this is again a RAII wrapper, just not shared lock this 
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;scoped_lock single_lock(cur_frame.mtx);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we check if the frame retrieved is actually present. Given that we return frames as a
-&lt;code&gt;std::unique_ptr&amp;lt;TelemetryFrame&amp;gt;&lt;/code&gt;, when we give them to the caller we are moving&lt;sup id="fnref:11"&gt;&lt;a href="#fn:11" class="footnote-ref" role="doc-noteref"&gt;11&lt;/a&gt;&lt;/sup&gt; them out of the queue. Then,
+&lt;code&gt;std::unique_ptr&amp;lt;TelemetryFrame&amp;gt;&lt;/code&gt;, when we give them to the caller we are moving&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt; them out of the queue. Then,
 since &lt;code&gt;std::unique_ptr&lt;/code&gt;&amp;rsquo;s move constructor sets the moved-from ptr to &lt;code&gt;nullptr&lt;/code&gt;, a frame which is not
 yet populated will be &lt;code&gt;nullptr&lt;/code&gt;. As such, if the frame we retrieve is &lt;code&gt;nullptr&lt;/code&gt;, it means that we have
 somehow advanced to a frame which is not ready, so the delay is not yet satisied. This should
@@ -549,15 +542,13 @@ this one.&lt;/p&gt;
 &lt;hr&gt;
 &lt;ol&gt;
 &lt;li id="fn:1"&gt;
-&lt;p&gt;A proper post for the project is soon to come&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;yeah this was
+lowkey track limits but it&amp;rsquo;s still awesome&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:2"&gt;
-&lt;p&gt;yeah this was lowkey track limits but it&amp;rsquo;s still awesome&amp;#160;&lt;a href="#fnref:2" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;it&amp;rsquo;s me I am said viewer&amp;#160;&lt;a href="#fnref:2" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&amp;#160;&lt;a href="#fnref1:2" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:3"&gt;
-&lt;p&gt;it&amp;rsquo;s me I am said viewer&amp;#160;&lt;a href="#fnref:3" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&amp;#160;&lt;a href="#fnref1:3" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;li id="fn:4"&gt;
 &lt;p&gt;this is a really cool
 explanation of this delay problem and why it&amp;rsquo;s not going anywhere &lt;a
  href="https://www.youtube.com/watch?v=CgcXli8NxHw"
@@ -565,30 +556,30 @@ explanation of this delay problem and why it&amp;rsquo;s not going anywhere &lt;
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://www.youtube.com/watch?v=CgcXli8NxHw&lt;/a&gt;&amp;#160;&lt;a href="#fnref:4" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://www.youtube.com/watch?v=CgcXli8NxHw&lt;/a&gt;&amp;#160;&lt;a href="#fnref:3" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:5"&gt;
+&lt;li id="fn:4"&gt;
 &lt;p&gt;&lt;a
  href="https://multiviewer.app"
  
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;multiviewer&lt;/a&gt; is an excellent tool and works across many series&amp;#160;&lt;a href="#fnref:5" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;multiviewer&lt;/a&gt; is an excellent tool and works across many series&amp;#160;&lt;a href="#fnref:4" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:6"&gt;
+&lt;li id="fn:5"&gt;
 &lt;p&gt;Also, your observed broadcast delay fluctuates over time &amp;ndash;
 if you want calibrate your delay to less than 0.5s/500ms you&amp;rsquo;re likely going to have to spend a lot of time
 monitoring and readjusting it. I personally would like to just set my telemetry delay to be &lt;em&gt;just&lt;/em&gt; longer than my
-broadcast delay and accept that what I see on my leaderboard is just barely behind what I see on TV.&amp;#160;&lt;a href="#fnref:6" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+broadcast delay and accept that what I see on my leaderboard is just barely behind what I see on TV.&amp;#160;&lt;a href="#fnref:5" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:6"&gt;
+&lt;p&gt;telemetry is sent rather quickly, with each frame representing at most slightly less than a second&amp;#160;&lt;a href="#fnref:6" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:7"&gt;
-&lt;p&gt;telemetry is sent rather quickly, with each frame representing at most slightly less than a second&amp;#160;&lt;a href="#fnref:7" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;and, we can &amp;ndash; we pick the refresh rate&amp;#160;&lt;a href="#fnref:7" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:8"&gt;
-&lt;p&gt;and, we can &amp;ndash; we pick the refresh rate&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;li id="fn:9"&gt;
 &lt;p&gt;this
 has, for better or worse, worked its way into my lexicon:
 &lt;a
@@ -597,9 +588,9 @@ has, for better or worse, worked its way into my lexicon:
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://x.com/peta/status/1070066047414345729&lt;/a&gt;&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://x.com/peta/status/1070066047414345729&lt;/a&gt;&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:10"&gt;
+&lt;li id="fn:9"&gt;
 &lt;p&gt;I cannot wait to rewrite this and make this a
 &lt;a
  href="https://en.cppreference.com/cpp/language/contracts"
@@ -607,9 +598,9 @@ has, for better or worse, worked its way into my lexicon:
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;pre and post condition&lt;/a&gt; once C++26 is mature&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;pre and post condition&lt;/a&gt; once C++26 is mature&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:11"&gt;
+&lt;li id="fn:10"&gt;
 &lt;p&gt;here is a decent
 explainer on those new to C++&amp;rsquo;s move semantics:
 &lt;a
@@ -618,7 +609,7 @@ explainer on those new to C++&amp;rsquo;s move semantics:
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://stackoverflow.com/questions/3106110/what-is-move-semantics&lt;/a&gt;&amp;#160;&lt;a href="#fnref:11" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://stackoverflow.com/questions/3106110/what-is-move-semantics&lt;/a&gt;&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;/div&gt;</description></item></channel></rss>
