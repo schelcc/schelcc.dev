@@ -10,6 +10,8 @@ katex = false
 As the core impetus for my most recent _(and ongoing)_ project, I think a break down of my design and implementation of
 the delay queue used in [#indy-tui](/tags/indy-tui) is perfectly befitting of a first post.
 
+<!--more-->
+
 I'll start with a little background on the project, follwed by a
 little more on the problem I was trying to solve and why I'm/ taking a crack at it. Then, I'll touch on the two main
 approaches I considered, what primary goals I was trying to meet, and ultimately which of the approaches stuck. Finally,
@@ -228,7 +230,7 @@ void recalculate() {
 
   _total_frames = (_delay_s * _refresh_hz) + DELAY_SLOP;
   _frame_period = Time::Duration::DblMilliSec(
-		    1000.0 / static_cast<double>(_refresh_hz));
+                    1000.0 / static_cast<double>(_refresh_hz));
 }
 ```
 

@@ -1,7 +1,7 @@
 +++
 title = "C++ Thread Safety, Reinventing The Wheel, and Making My Life Easier"
 author = ["Cole"]
-lastmod = 2026-09-23T14:09:38-04:00
+lastmod = 2026-09-23T18:33:53-04:00
 tags = ["cpp", "misc-design-notes"]
 draft = false
 katex = false
@@ -12,6 +12,8 @@ Alternative title: [Carcinization](https://en.wikipedia.org/wiki/Carcinisation)?
 
 Whilst the job search continues, I thought I'd get out a quicker writeup about a lifesaver of a tool
 I've recently implemented in my ongoing project `indy-tui`[^fn:1] and how I ~~stumbled~~ iterated my way to it.
+
+<!--more-->
 
 
 ## Background {#background}

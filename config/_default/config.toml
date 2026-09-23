@@ -30,6 +30,9 @@ languageCode = "en-US"
   # [markup.highlight]
   #   codeFences = true
 
+[imaging]
+  quality = 90
+
 [params]
   defaultTheme = "dark"
   themeColor = "red"
