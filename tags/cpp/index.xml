@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Cpp on schelcc</title><link>https://schelcc.dev/tags/cpp/</link><description>Recent content in Cpp on schelcc</description><generator>Hugo</generator><language>en-US</language><lastBuildDate>Wed, 23 Sep 2026 14:09:38 -0400</lastBuildDate><atom:link href="https://schelcc.dev/tags/cpp/index.xml" rel="self" type="application/rss+xml"/><item><title>C++ Thread Safety, Reinventing The Wheel, and Making My Life Easier</title><link>https://schelcc.dev/posts/20260921143401-reinventing_the_wheel-blog/</link><pubDate>Wed, 23 Sep 2026 14:09:38 -0400</pubDate><guid>https://schelcc.dev/posts/20260921143401-reinventing_the_wheel-blog/</guid><description>&lt;p&gt;Alternative title: &lt;a
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Cpp on schelcc</title><link>https://schelcc.dev/tags/cpp/</link><description>Recent content in Cpp on schelcc</description><generator>Hugo</generator><language>en-US</language><lastBuildDate>Wed, 23 Sep 2026 18:33:53 -0400</lastBuildDate><atom:link href="https://schelcc.dev/tags/cpp/index.xml" rel="self" type="application/rss+xml"/><item><title>C++ Thread Safety, Reinventing The Wheel, and Making My Life Easier</title><link>https://schelcc.dev/posts/20260921143401-reinventing_the_wheel-blog/</link><pubDate>Wed, 23 Sep 2026 18:33:53 -0400</pubDate><guid>https://schelcc.dev/posts/20260921143401-reinventing_the_wheel-blog/</guid><description>&lt;p&gt;Alternative title: &lt;a
  href="https://en.wikipedia.org/wiki/Carcinisation"
  
  
@@ -6,18 +6,9 @@
  
 &gt;Carcinization&lt;/a&gt;? In my C++ codebase? It&amp;rsquo;s more likely than you think.&lt;/p&gt;
 &lt;p&gt;Whilst the job search continues, I thought I&amp;rsquo;d get out a quicker writeup about a lifesaver of a tool
-I&amp;rsquo;ve recently implemented in my ongoing project &lt;code&gt;indy-tui&lt;/code&gt;&lt;sup id="fnref:1"&gt;&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref"&gt;1&lt;/a&gt;&lt;/sup&gt; and how I &lt;del&gt;stumbled&lt;/del&gt; iterated my way to it.&lt;/p&gt;
-&lt;h2 id="background"&gt;Background&lt;a href="#background" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
-&lt;/h2&gt;
-&lt;p&gt;By its nature, &lt;code&gt;indy-tui&lt;/code&gt; requires keeping several threads up and running &amp;ndash; when managing an
-interface, user input, and a live websocket session, one&amp;rsquo;s hand is slightly forced. Likewise,
-some amount of shared data across threads is largely unavoidable. Hence, it&amp;rsquo;s time for locking.&lt;/p&gt;</description></item><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
+I&amp;rsquo;ve recently implemented in my ongoing project &lt;code&gt;indy-tui&lt;/code&gt;&lt;sup id="fnref:1"&gt;&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref"&gt;1&lt;/a&gt;&lt;/sup&gt; and how I &lt;del&gt;stumbled&lt;/del&gt; iterated my way to it.&lt;/p&gt;</description></item><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
 the delay queue used in &lt;a
  href="https://schelcc.dev/tags/indy-tui"
  
  
-&gt;#indy-tui&lt;/a&gt; is perfectly befitting of a first post.&lt;/p&gt;
-&lt;p&gt;I&amp;rsquo;ll start with a little background on the project, follwed by a
-little more on the problem I was trying to solve and why I&amp;rsquo;m/ taking a crack at it. Then, I&amp;rsquo;ll touch on the two main
-approaches I considered, what primary goals I was trying to meet, and ultimately which of the approaches stuck. Finally,
-I&amp;rsquo;ll go a little more technically in-depth on the implementation I have today.&lt;/p&gt;</description></item></channel></rss>
+&gt;#indy-tui&lt;/a&gt; is perfectly befitting of a first post.&lt;/p&gt;</description></item></channel></rss>
