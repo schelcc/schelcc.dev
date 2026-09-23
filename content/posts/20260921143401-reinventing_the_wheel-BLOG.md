@@ -113,12 +113,18 @@ an ideal world, I wanted a type _(or macro_)[^fn:6] which could wrap any type an
 4.  When necessary, I can still hold a lock on the object for an arbitrary amount of time _(e.g. need
     to work on several objects and need all locked to do so)_
 
+Surely[^fn:7], the shared mutex and manual use of the shared/unique locks is
+perfectly viable. I just don't like it. Also it's my learning project and I'll overengineer types if
+I want to.
+
+With that, let the wheel reinvention commence.
+
 
 ## The triangular wheel {#the-triangular-wheel}
 
 First is the solution that truly missed the mark.
 
-For whatever reason I was quite stuck in OOP brain when working on this[^fn:7], so immediately what came to mind was a
+For whatever reason I was quite stuck in OOP brain when working on this[^fn:8], so immediately what came to mind was a
 wrapper which simply defined a getter and setter, taking a shared lock and unique lock respectively:
 
 ```cpp
@@ -173,7 +179,7 @@ some_field.set(T()).get();
 
 This "works", but there is a suspiciously elephant-shaped object in the corner that is begging to be
 acknowledged: we release the unique_lock and then some time later take the shared_lock. In other
-words, _we are not guaranteed that `some_field` has not changed again between `set()` and `get()`_.[^fn:8]
+words, _we are not guaranteed that `some_field` has not changed again between `set()` and `get()`_.[^fn:9]
 
 Regardless of if I'm wrong and there is somehow a guarantee that the two calls will always directly
 follow each other, I still threw this solution out -- the forced copying alone is a nonstarter, and
@@ -190,7 +196,7 @@ references to the wrapped object.
 
 Fortunately, someone working on the standards saw this coming -- `std::shared_lock` and
 `std::unique_lock` are movable. Hence, we just need to adjust the idea behind the getter and setter
-before to instead get locks. In comes the trusty `std::pair` and [structured bindings](https://en.cppreference.com/cpp/language/structured_binding)[^fn:9]:
+before to instead get locks. In comes the trusty `std::pair` and [structured bindings](https://en.cppreference.com/cpp/language/structured_binding)[^fn:10]:
 
 ```cpp
 // shared and unique lock are templated on the mutex type -- they were
@@ -255,7 +261,7 @@ wanted to be able to somehow "wrap" an entire type to lock before and after like
 decorated function, but have that type behave almost exactly like the wrapped type -- I wanted the
 lock to be invisible.
 
-Now is when I reached out to a friend and much better programmer[^fn:10] to see what they thought; whether this was even a
+Now is when I reached out to a friend and much better programmer[^fn:11] to see what they thought; whether this was even a
 decent pattern, or if I was simply losing it. Turns out it was a bit of both -- this was
 [carcinization](https://en.wikipedia.org/wiki/Carcinisation) manifest.
 
@@ -282,8 +288,8 @@ We'll call these `LockPair` and `Locked` respectively.
 Translating (1) to C++ land for `LockPair<T>`, we need to define `operator*()` and `operator->()` for some
 templated struct which has the templated type and a lock. When an instance of this struct is
 dereferenced, we want to return a _(possibly const)_ reference to the wrapped object -- this is our
-`operator*()`. The specifics of `operator->()` are a bit of a tangent[^fn:11], but here we can get away
-with just returning a _(possibly const)_ pointer[^fn:12] to the wrapped
+`operator*()`. The specifics of `operator->()` are a bit of a tangent[^fn:12], but here we can get away
+with just returning a _(possibly const)_ pointer[^fn:13] to the wrapped
 object.
 
 The other half of the `LockPair<T>` is the lock itself. With `std::unique_lock` and `std::shared_lock`,
@@ -292,7 +298,7 @@ the lock is released. Thus, we have to be sure to own the lock for this to work,
 we'll want to move it in. A neat result of the RAII usage is that we don't actually have to interact
 with the lock _at all_, we just need to hold onto it. Regardless of whether we have a unique or shared
 lock, any information we need to generate the appropriate methods is contained in the templated type
--- we can just shove the lock in a variant of the two lock types and move on.[^fn:13]
+-- we can just shove the lock in a variant of the two lock types and move on.[^fn:14]
 
 The final constraint on `LockPair<T>` to note is that we template around the wrapped type, not a
 reference to the wrapped type, so we'll just add a requirement on the template that `T` is not a
@@ -439,7 +445,7 @@ of laps. To accomplish this, I need to:
     -   Update the row as `"Time left"` followed by the time left if present, otherwise `"--:--:--"`
 
 To do this before would've required manually taking a shared lock of `completed_laps` and `total_laps`,
-possibly requiring two extra scopes if I wanted to avoid locking both at the same time[^fn:14]. The `Table` UI element
+possibly requiring two extra scopes if I wanted to avoid locking both at the same time[^fn:15]. The `Table` UI element
 that's in use here has the ability to update a full row or column with a vector, and the
 `std::optional<int>` fields give us the ability to use the mapping methods `.transform()` and
 `.and_then()` to do something with the (possibly) contained value and return another
@@ -464,8 +470,8 @@ if (sess.session_type.get_const()->value_or(
     1, {"Time left", sess.time_to_go.get_const()->value_or("--:--:--")});
 ```
 
-For that second example, I'll pick out a smaller component[^fn:15]. In the logic to display the live leaderboard, I have a table of possibly changing size
-dependent on two things -- the number of drivers, and the number of columns desired[^fn:16]. Thus, when I want to update one of these values, I
+For that second example, I'll pick out a smaller component[^fn:16]. In the logic to display the live leaderboard, I have a table of possibly changing size
+dependent on two things -- the number of drivers, and the number of columns desired[^fn:17]. Thus, when I want to update one of these values, I
 need to do some reconfiguration afterwards.
 
 For some reason, I decided to have setters for the number of drivers and the columns individually,
@@ -548,50 +554,51 @@ TelemetryBoard::reorder_and_get() {
 ```
 
 [^fn:1]: See [the github repo](https://github.com/schelcc/indy-tui) for the project, or
-    [#indy-tui](/tags/indy-tui) for more here
+    [#indy-tui](/tags/indy-tui) for more here.
 [^fn:2]: Huge shoutout to this wonderful talk from David Olsen
-    [Back To Basics: C++ Concurrency](https://www.youtube.com/watch?v=8rEGu20Uw4g)
+    [Back To Basics: C++ Concurrency](https://www.youtube.com/watch?v=8rEGu20Uw4g).
 [^fn:3]: A tip. If you are early on in a project and are
     already in enough of a deadlock mess to think that logging lock acquisition is going to be
     helpful. Maybe like, do something else?  Oops.
 [^fn:4]: We need not discuss
     the caveat. It is certainly not a queue. Certainly I did not try a thread-safe queue based on what I
     remember from my computer organization class. Certainly.
-[^fn:5]: Read: mutilation
+[^fn:5]: Read: mutilation.
 [^fn:6]: I did not end up trying a macro. The world should
     consider itself lucky there is a part of my brain capable of keeping me from reaching for macros and
     `goto`.
-[^fn:7]: Fear not for later that day I
-    watched Casey Muratori's [The Big OOPs](https://www.youtube.com/watch?v=wo84LFzx5nI) and that concluded
-[^fn:8]: To
+[^fn:7]: Don't call me Shirley.
+[^fn:8]: Fear not for later that day I
+    watched Casey Muratori's [The Big OOPs](https://www.youtube.com/watch?v=wo84LFzx5nI) and that concluded.
+[^fn:9]: To
     verify, I wrote up a simple compiler explorer example -- as far as I can tell, GCC and Clang seem to
     do different things with this `set()` then `get()` sequence. In GCC I cannot get the two to disagree
     (i.e. another `set()` occurs in between pair `set()` and `get()` calls), but in Clang it seems relatively
     frequent. I might investigate this further later, but here's the link:
-    <https://godbolt.org/z/hqWrfPve3>
-[^fn:9]: I can't find
-    a link to the standards discussion but someone is proposing nested structured bindings which would be so good
-    please I am begging
-[^fn:10]: Huge shoutout to Rose
-    please check out their page <https://ikl.sh/>
-[^fn:11]: And tangent I will. If the
+    <https://godbolt.org/z/hqWrfPve3>.
+[^fn:10]: I can't find
+    a link to the standards discussion but someone is proposing nested structured bindings which would
+    be so good please I am begging.
+[^fn:11]: Huge shoutout to Rose
+    please check out their page <https://ikl.sh/>.
+[^fn:12]: And tangent I will. If the
     `operator->()` overload returns a pointer, it behaves exactly as expected, giving us the equivalent of
     `(*obj).foo()`. But, if it returns a non-pointer, `operator->()` is then applied on _that_ value,
     repeating this until a pointer is returned, which is then dereferenced as usual. This "drilling
     down" behavior was (to me) surprising but I guess makes sense -- if we have `T** ptr` and want to
     access the object, it would be quite annoying to have to do `ptr->->foo()`.
-[^fn:12]: An earlier attempt saw me returning a pointer
+[^fn:13]: An earlier attempt saw me returning a pointer
     whenever the wrapped object did not have the dereference operator defined, otherwise I returned a
     reference to the result of dereferencing it. Because of that drill-down behavior this actually
     punched straight through things like std::optional and would've been a nightmare...
-[^fn:13]: I've just now
+[^fn:14]: I've just now
     realized that, if desired, we could further template this to allow us to define the possible lock
-    types, meaning we _could_ extend this past shared and unique lock if we so desired
-[^fn:14]: Which I'd
-    want to do to avoid unnecessary contention as these would be updated often
-[^fn:15]: What's here is already a bit
+    types, meaning we _could_ extend this past shared and unique lock if we so desired.
+[^fn:15]: Which I'd
+    want to do to avoid unnecessary contention as these would be updated often.
+[^fn:16]: What's here is already a bit
     vestigial -- I need to update some pieces which would wind up mooting this part. But it's a good
     example.
-[^fn:16]: The columns
+[^fn:17]: The columns
     are functors which produce a string given a driver's current information, so adding a new column of
-    information is simply adding a new functor
+    information is simply adding a new functor.
