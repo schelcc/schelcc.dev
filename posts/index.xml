@@ -1,4 +1,594 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>schelcc | blog on schelcc</title><link>https://schelcc.dev/posts/index.xml</link><description>Recent content in schelcc | blog on schelcc</description><generator>Hugo</generator><language/><lastBuildDate>Thu, 06 Aug 2026 08:23:40 -0400</lastBuildDate><atom:link href="https://schelcc.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>schelcc | blog on schelcc</title><link>https://schelcc.dev/posts/index.xml</link><description>Recent content in schelcc | blog on schelcc</description><generator>Hugo</generator><language/><lastBuildDate>Wed, 23 Sep 2026 14:09:38 -0400</lastBuildDate><atom:link href="https://schelcc.dev/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>C++ Thread Safety, Reinventing The Wheel, and Making My Life Easier</title><link>https://schelcc.dev/posts/20260921143401-reinventing_the_wheel-blog/</link><pubDate>foo Wed, 23 Sep 2026 14:09:38 -0400</pubDate><guid>https://schelcc.dev/posts/20260921143401-reinventing_the_wheel-blog/</guid><description>&lt;p&gt;Alternative title: &lt;a
+ href="https://en.wikipedia.org/wiki/Carcinisation"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;Carcinization&lt;/a&gt;? In my C++ codebase? It&amp;rsquo;s more likely than you think.&lt;/p&gt;
+&lt;p&gt;Whilst the job search continues, I thought I&amp;rsquo;d get out a quicker writeup about a lifesaver of a tool
+I&amp;rsquo;ve recently implemented in my ongoing project &lt;code&gt;indy-tui&lt;/code&gt;&lt;sup id="fnref:1"&gt;&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref"&gt;1&lt;/a&gt;&lt;/sup&gt; and how I &lt;del&gt;stumbled&lt;/del&gt; iterated my way to it.&lt;/p&gt;
+&lt;h2 id="background"&gt;Background&lt;a href="#background" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;By its nature, &lt;code&gt;indy-tui&lt;/code&gt; requires keeping several threads up and running &amp;ndash; when managing an
+interface, user input, and a live websocket session, one&amp;rsquo;s hand is slightly forced. Likewise,
+some amount of shared data across threads is largely unavoidable. Hence, it&amp;rsquo;s time for locking.&lt;/p&gt;
+&lt;p&gt;This project has been my first &amp;ldquo;real&amp;rdquo; go at an actually multithreaded application; a desire to gain
+some experience with multithreading, both generally and with C++&amp;rsquo;s Standard Library, was a strong
+factor in my motivation to take it on.&lt;sup id="fnref:2"&gt;&lt;a href="#fn:2" class="footnote-ref" role="doc-noteref"&gt;2&lt;/a&gt;&lt;/sup&gt; As such, the git history demonstrates me walking across the
+learning curve &amp;ndash; first a lot of &lt;code&gt;std::mutex&lt;/code&gt; and &lt;code&gt;std::scoped_lock&lt;/code&gt;, followed by my own ill-fated RAII
+wrapper to add logging to lock acquisition&lt;sup id="fnref:3"&gt;&lt;a href="#fn:3" class="footnote-ref" role="doc-noteref"&gt;3&lt;/a&gt;&lt;/sup&gt;, a handful of &lt;code&gt;std::atomic&lt;/code&gt; misunderstandings, only
+then finally landing on &lt;code&gt;std::shared_mutex&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Thankfully, almost every instance of a need for shared data in this project&lt;sup id="fnref:4"&gt;&lt;a href="#fn:4" class="footnote-ref" role="doc-noteref"&gt;4&lt;/a&gt;&lt;/sup&gt; is a &amp;ldquo;one writer, many readers&amp;rdquo; situation,
+so &lt;code&gt;std::shared_mutex&lt;/code&gt; is really the best option. Until recently, I was satisfied giving each of my
+classes a shared mutex &lt;em&gt;(or multiple to give load bearing components their own)&lt;/em&gt; and keeping access to
+them and their related data tightly behind private getters and setters. This was largely &lt;em&gt;fine&lt;/em&gt;, it
+didn&amp;rsquo;t feel the best but it seemed simple.&lt;/p&gt;
+&lt;p&gt;It seemed simple.&lt;/p&gt;
+&lt;h3 id="i-like-dataclasses"&gt;I like dataclasses&lt;a href="#i-like-dataclasses" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h3&gt;
+&lt;p&gt;For better or worse, I quite like dataclasses. I like more semantic code what can I say.&lt;/p&gt;
+&lt;p&gt;For a UI rework inching towards some adaptation&lt;sup id="fnref:5"&gt;&lt;a href="#fn:5" class="footnote-ref" role="doc-noteref"&gt;5&lt;/a&gt;&lt;/sup&gt; of MVC, I needed to pull out
+the UI logic I had put inside the leaderboard. That work was in there to begin with because the
+leaderboard needed to access the vector of drivers, as well as a collection of event information
+&lt;em&gt;(track name, laps to go, current flag, etc.)&lt;/em&gt;, and with these being behind several shared mutexes the
+UI logic needed the ability to get locks. Why have one responsibility when you could have more?&lt;/p&gt;
+&lt;p&gt;I like dataclasses, so the obvious solution to me was to pull the event information out into some
+&lt;code&gt;EventInfo&lt;/code&gt; struct, with fields for each entry, and then have the leaderboard hold around an instance
+of it:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;EventInfo&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// We aren&amp;#39;t guaranteed to get the data for these fields all at the
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// same time, so we populate them as we get them, hence the
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// optionals
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;optional&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; event_name;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;optional&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; track_name;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;optional&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; laps_to_go;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Fine enough, but this is shared data &amp;ndash; gotta have those mutexes. But, what gets a mutex? And who is
+responsible for it? Some of these fields are updated much more frequently than others, and most of
+them are read each render loop; if the full struct gets one mutex, we could end up with a lot of
+contention. Conversely, if we want to give each field its own, that&amp;rsquo;s both a lot of annoying
+boilerplate &lt;em&gt;and&lt;/em&gt; making the usage more annoying as I&amp;rsquo;d have to litter the codebase with
+mindfully-scoped lock wrappers &lt;em&gt;(or do manual locking and risk forgetting an unlock)&lt;/em&gt; &amp;ndash; this would
+look something like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;EventInfo&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_mutex event_name_mtx;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;optional&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; event_name;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_mutex track_name_mtx;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;optional&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; track_name;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/* ... */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Use somewhere in the codebase, say to check if we have the event name yet
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Open a tighter scope so that the lock doesn&amp;#39;t live longer than it needs to
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock event_name_lock(event_info.event_name_mtx);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (event_name.has_value()) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// event_name_lock is alive for all of whatever&amp;#39;s in here
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; } &lt;span style="color:#66d9ef"&gt;else&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// and all of whatever&amp;#39;s in here too
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s not very fun. It&amp;rsquo;s even less fun when you need multiple locks at the same time.&lt;/p&gt;
+&lt;p&gt;This was the point where I had justified a tangent of trying to find a remotely ergonomic design. In
+an ideal world, I wanted a type &lt;em&gt;(or macro&lt;/em&gt;)&lt;sup id="fnref:6"&gt;&lt;a href="#fn:6" class="footnote-ref" role="doc-noteref"&gt;6&lt;/a&gt;&lt;/sup&gt; which could wrap any type and:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Add a shared mutex&lt;/li&gt;
+&lt;li&gt;Handle getting and setting in a more ergonmic way than manually acquiring
+&lt;code&gt;std::shared_lock&lt;/code&gt; and/or &lt;code&gt;std::unique_lock&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;If at all possible, do (2) in such a way that trying to modify the underlying object when taking a
+shared lock becomes a compilation error, as well as attempting to get a unique lock on a
+const reference to the wrapped object&lt;/li&gt;
+&lt;li&gt;When necessary, I can still hold a lock on the object for an arbitrary amount of time &lt;em&gt;(e.g. need
+to work on several objects and need all locked to do so)&lt;/em&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="the-triangular-wheel"&gt;The triangular wheel&lt;a href="#the-triangular-wheel" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;First is the solution that truly missed the mark.&lt;/p&gt;
+&lt;p&gt;For whatever reason I was quite stuck in OOP brain when working on this&lt;sup id="fnref:7"&gt;&lt;a href="#fn:7" class="footnote-ref" role="doc-noteref"&gt;7&lt;/a&gt;&lt;/sup&gt;, so immediately what came to mind was a
+wrapper which simply defined a getter and setter, taking a shared lock and unique lock respectively:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Omitting constructors and whatnot
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;LockWrapper&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; T &lt;span style="color:#a6e22e"&gt;get&lt;/span&gt;() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock lock(mtx);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; obj;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;void&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;set&lt;/span&gt;(T t) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock lock(mtx);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// In reality you&amp;#39;d want to take the input as a forwarding
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// reference and std::forward it here but there are more pressing
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// matters
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; obj &lt;span style="color:#f92672"&gt;=&lt;/span&gt; t;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;private&lt;/span&gt;&lt;span style="color:#f92672"&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; T obj;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// By qualifying this as mutable we can take a shared_lock in a
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// const-qualified method
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;mutable&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_mutex mtx;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;A couple problems here.&lt;/p&gt;
+&lt;p&gt;A glaring issue is the signature of &lt;code&gt;get()&lt;/code&gt; &amp;ndash; we incur a copy every single time we call &lt;code&gt;get()&lt;/code&gt;! This
+is quite bad. Even worse, if &lt;code&gt;T&lt;/code&gt; is not copyable it&amp;rsquo;s fully incompatible with this wrapper.&lt;/p&gt;
+&lt;p&gt;Another issue is what happens when you want to first assign to the wrapped value and then use it?
+You might say to return a reference to the wrapper in set:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;LockWrapper&lt;span style="color:#f92672"&gt;&amp;amp;&lt;/span&gt; set(T t) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock lock(mtx);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; obj &lt;span style="color:#f92672"&gt;=&lt;/span&gt; t;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; &lt;span style="color:#f92672"&gt;*&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;this&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And then you might use the two methods together:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Let some_field be a LockWrapper of some default constructible and
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// assignable type T
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;some_field.set(T()).get();
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This &amp;ldquo;works&amp;rdquo;, but there is a suspiciously elephant-shaped object in the corner that is begging to be
+acknowledged: we release the unique_lock and then some time later take the shared_lock. In other
+words, &lt;em&gt;we are not guaranteed that &lt;code&gt;some_field&lt;/code&gt; has not changed again between &lt;code&gt;set()&lt;/code&gt; and &lt;code&gt;get()&lt;/code&gt;&lt;/em&gt;.&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;p&gt;Regardless of if I&amp;rsquo;m wrong and there is somehow a guarantee that the two calls will always directly
+follow each other, I still threw this solution out &amp;ndash; the forced copying alone is a nonstarter, and
+this doesn&amp;rsquo;t allow me to actually hold onto the lock for longer if needed.&lt;/p&gt;
+&lt;h2 id="the-hexagonal-wheel"&gt;The hexagonal wheel&lt;a href="#the-hexagonal-wheel" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;After the above failure, another component of the &amp;ldquo;right&amp;rdquo; solution became clear: the lock itself has
+to be handed off alongside the data. To take advantage of the whole RAII wrapper thing, the lock
+needed to be given to the caller and stored in some way. That is, the lock must be an &lt;a
+ href="https://en.cppreference.com/cpp/language/value_category"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;lvalue&lt;/a&gt; at the
+callsite. Also, we should be sure to &lt;em&gt;not&lt;/em&gt; copy literally everything &amp;ndash; we should be returning
+references to the wrapped object.&lt;/p&gt;
+&lt;p&gt;Fortunately, someone working on the standards saw this coming &amp;ndash; &lt;code&gt;std::shared_lock&lt;/code&gt; and
+&lt;code&gt;std::unique_lock&lt;/code&gt; are movable. Hence, we just need to adjust the idea behind the getter and setter
+before to instead get locks. In comes the trusty &lt;code&gt;std::pair&lt;/code&gt; and &lt;a
+ href="https://en.cppreference.com/cpp/language/structured_binding"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;structured bindings&lt;/a&gt;&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// shared and unique lock are templated on the mutex type -- they were
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// inferred before, but won&amp;#39;t be now, so we&amp;#39;ll just add a defaulted
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// template parameter to fill them in
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T, &lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; Mut &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_mutex&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;LockWrapper&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Again omitting constructors
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;pair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;, T &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;amp;&amp;gt;&lt;/span&gt; get_const() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; {std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;(mtx), obj};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;pair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;, T&lt;span style="color:#f92672"&gt;&amp;amp;&amp;gt;&lt;/span&gt; get_mut() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; {std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;(mtx), obj};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;private&lt;/span&gt;&lt;span style="color:#f92672"&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; T obj;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Mut mtx;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now, using structured bindings we can easily get both the lock and the object:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;LockedWrapper&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; s &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;foo&amp;#34;&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// We can append to the string
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; [lock, ref_s] &lt;span style="color:#f92672"&gt;=&lt;/span&gt; s.get_mut();
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ref_s.append(&lt;span style="color:#e6db74"&gt;&amp;#34;bar&amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// And we can print the string
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; [lock, ref_s] &lt;span style="color:#f92672"&gt;=&lt;/span&gt; s.get_const();
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;println(&lt;span style="color:#e6db74"&gt;&amp;#34;{}&amp;#34;&lt;/span&gt;, ref_s);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This feels &lt;em&gt;much&lt;/em&gt; better than before &amp;ndash; we aren&amp;rsquo;t copying and we can hold the lock as long as we see
+fit. But, this has a bit of a semantic downside: if we want to use the wrapped object directly in an
+expression &lt;em&gt;(not break it out into a statement beforehand, and add a scope to shorten the
+lifetime)&lt;/em&gt; we have to call the annoying &lt;code&gt;.second&lt;/code&gt; member of the pair:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;LockedWrapper&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;string&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; s &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;foo&amp;#34;&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;s.get_mut().second.append(&lt;span style="color:#e6db74"&gt;&amp;#34;bar&amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;println(&lt;span style="color:#e6db74"&gt;&amp;#34;{}&amp;#34;&lt;/span&gt;, ref_s.get_const().second);
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This isn&amp;rsquo;t the end of the world, but it is a bit worse than I would&amp;rsquo;ve liked.&lt;/p&gt;
+&lt;h2 id="i-dream-of-better--already-existing--wheels"&gt;I dream of better (already existing) wheels&lt;a href="#i-dream-of-better--already-existing--wheels" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;At this point what I had in my head as the dream solution almost mirrored Python&amp;rsquo;s decorators: I
+wanted to be able to somehow &amp;ldquo;wrap&amp;rdquo; an entire type to lock before and after like you could with a
+decorated function, but have that type behave almost exactly like the wrapped type &amp;ndash; I wanted the
+lock to be invisible.&lt;/p&gt;
+&lt;p&gt;Now is when I reached out to a friend and much better programmer&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt; to see what they thought; whether this was even a
+decent pattern, or if I was simply losing it. Turns out it was a bit of both &amp;ndash; this was
+&lt;a
+ href="https://en.wikipedia.org/wiki/Carcinisation"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;carcinization&lt;/a&gt; manifest.&lt;/p&gt;
+&lt;h2 id="the-dot-dot-dot-crab-wheel"&gt;The&amp;hellip; crab wheel?&lt;a href="#the-dot-dot-dot-crab-wheel" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;So, turns out, I was just inching ever closer to exactly how Rust handles this problem. Whoops.&lt;/p&gt;
+&lt;p&gt;In Rust&amp;rsquo;s &lt;code&gt;std::sync&lt;/code&gt; they provide &lt;code&gt;MutexGuard&amp;lt;T&amp;gt;&lt;/code&gt; &amp;ndash; a RAII wrapper which locks an object protected by
+a mutex, but acts just as &lt;code&gt;&amp;amp;T&lt;/code&gt; when dereferenced, and releases the lock when falling out of
+scope. This is exactly what I&amp;rsquo;ve wanted all along, so it&amp;rsquo;s time for the final wheel.&lt;/p&gt;
+&lt;p&gt;To mimic this, we need two new types:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;One which wraps a (possibly const) reference to the wrapped type with a lock, but largely acts
+like the wrapped type&lt;/li&gt;
+&lt;li&gt;One which wraps a type with a shared mutex and spits out (1)&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;We&amp;rsquo;ll call these &lt;code&gt;LockPair&lt;/code&gt; and &lt;code&gt;Locked&lt;/code&gt; respectively.&lt;/p&gt;
+&lt;h3 id="lockpair-t"&gt;&lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt;&lt;a href="#lockpair-t" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h3&gt;
+&lt;p&gt;Translating (1) to C++ land for &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt;, we need to define &lt;code&gt;operator*()&lt;/code&gt; and &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; for some
+templated struct which has the templated type and a lock. When an instance of this struct is
+dereferenced, we want to return a &lt;em&gt;(possibly const)&lt;/em&gt; reference to the wrapped object &amp;ndash; this is our
+&lt;code&gt;operator*()&lt;/code&gt;. The specifics of &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; are a bit of a tangent&lt;sup id="fnref:11"&gt;&lt;a href="#fn:11" class="footnote-ref" role="doc-noteref"&gt;11&lt;/a&gt;&lt;/sup&gt;, but here we can get away
+with just returning a &lt;em&gt;(possibly const)&lt;/em&gt; pointer&lt;sup id="fnref:12"&gt;&lt;a href="#fn:12" class="footnote-ref" role="doc-noteref"&gt;12&lt;/a&gt;&lt;/sup&gt; to the wrapped
+object.&lt;/p&gt;
+&lt;p&gt;The other half of the &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; is the lock itself. With &lt;code&gt;std::unique_lock&lt;/code&gt; and &lt;code&gt;std::shared_lock&lt;/code&gt;,
+the RAII functionality is such that when the object that &lt;em&gt;currently&lt;/em&gt; owns the lock goes out of scope,
+the lock is released. Thus, we have to be sure to own the lock for this to work, and at construction
+we&amp;rsquo;ll want to move it in. A neat result of the RAII usage is that we don&amp;rsquo;t actually have to interact
+with the lock &lt;em&gt;at all&lt;/em&gt;, we just need to hold onto it. Regardless of whether we have a unique or shared
+lock, any information we need to generate the appropriate methods is contained in the templated type
+&amp;ndash; we can just shove the lock in a variant of the two lock types and move on.&lt;sup id="fnref:13"&gt;&lt;a href="#fn:13" class="footnote-ref" role="doc-noteref"&gt;13&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;p&gt;The final constraint on &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; to note is that we template around the wrapped type, not a
+reference to the wrapped type, so we&amp;rsquo;ll just add a requirement on the template that &lt;code&gt;T&lt;/code&gt; is not a
+reference.&lt;/p&gt;
+&lt;p&gt;This gives us &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T, &lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; ...Ts&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;concept&lt;/span&gt; IsOneOf &lt;span style="color:#f92672"&gt;=&lt;/span&gt; (std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;is_same_v&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T, Ts&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#f92672"&gt;||&lt;/span&gt; ...);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// This is just a requirement that the input templated type is present
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// in a list of types. If you&amp;#39;re not familiar with C++&amp;#39;s concepts,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// just read &amp;#34;IsOneOf&amp;lt;...&amp;gt; auto&amp;#34; below as &amp;#34;any type in this given list
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// of types&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T, &lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; Mut &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_mutex&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;requires&lt;/span&gt;(&lt;span style="color:#f92672"&gt;!&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;is_reference_v&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;LockPair&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;private&lt;/span&gt;&lt;span style="color:#f92672"&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;variant&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;, std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; lock;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;reference_wrapper&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; val;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;public&lt;/span&gt;&lt;span style="color:#f92672"&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Technically we do end up taking the lock as a forwarded reference
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// here, but the locks are only movable so we don&amp;#39;t need to worry
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// about copying.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; S &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;remove_cv_t&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair(IsOneOf&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;, std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;Mut&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;l,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; S &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;s)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;:&lt;/span&gt; lock(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;move(l)), val(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;reference_wrapper&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;forward&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;S&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;(s))) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Return a (possibly const) pointer to T
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; T &lt;span style="color:#f92672"&gt;*&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;operator&lt;/span&gt;&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;() { &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&lt;/span&gt;(val.get()); }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Return a (possibly const) ref to T
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; T &lt;span style="color:#f92672"&gt;&amp;amp;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;operator&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt;() { &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; val.get(); }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="locked-t"&gt;&lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt;&lt;a href="#locked-t" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; has one job: control access to the contained object. Where &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; acts as a way to
+get to the object, &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; acts as a way to get to a &lt;code&gt;LockedPair&amp;lt;T&amp;gt;&lt;/code&gt;. Thus, we need to accomplish
+three main items:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Hold &lt;code&gt;T&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Define a way to retrieve a mutable reference to the object&lt;/li&gt;
+&lt;li&gt;Define a way to retrieve a constant reference to the object&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;For (1) we just need to concern ourselves with construction. If &lt;code&gt;T&lt;/code&gt; is default-constructible, we want
+&lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; to be as well, so we&amp;rsquo;ll define that and let it be deleted whenever &lt;code&gt;T&lt;/code&gt; is not
+default-constructible. In that case, we&amp;rsquo;ll have &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; be initialized with some &lt;code&gt;T&lt;/code&gt;, and once again
+we&amp;rsquo;ll see the forwarding reference so that we can both copy and move into &lt;code&gt;Locked&lt;/code&gt;. Those are the
+options for constructing &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; &amp;ndash; once we have &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; we only allow access to the wrapped
+object through the &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; interfaces. That is to say, there is no way to get to the
+contained object directly through &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;For (2) and (3), we&amp;rsquo;ll define &lt;code&gt;get_mut() -&amp;gt; LockPair&amp;lt;T&amp;gt;&lt;/code&gt; and &lt;code&gt;get_const() -&amp;gt; LockPair&amp;lt;T const&amp;gt;&lt;/code&gt; which
+simply return &lt;code&gt;{std::unique_lock(_mtx), _val}&lt;/code&gt; and &lt;code&gt;{std::shared_lock(_mtx), _val}&lt;/code&gt; respectively,
+passing them to &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt;&amp;rsquo;s relevant constructor. Once again, we instruct &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; on what
+kind of methods to generate &lt;em&gt;(whether the accessors are const or not)&lt;/em&gt; based on the template
+parameter &lt;code&gt;T&lt;/code&gt;, not the lock we give it. One special case we&amp;rsquo;ll want to handle is when &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt;
+itself is accessed through a const reference, say by accessing a class&amp;rsquo;s member &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; in the
+body of a const-qualified method. In this case, we&amp;rsquo;ll want to make attempting to get mutable
+access a compilation error &amp;ndash; we&amp;rsquo;ll just delete &lt;code&gt;get_mut()&lt;/code&gt; for the const-qualified overload.&lt;/p&gt;
+&lt;p&gt;One final note on &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; is that allowing &lt;code&gt;T&lt;/code&gt; to be a pointer doesn&amp;rsquo;t really make sense, at least
+as far as I can imagine. For my use I don&amp;rsquo;t want to permit it to hold a pointer, so I&amp;rsquo;ll add a
+constraint to the template requiring this. There&amp;rsquo;s not a named constraint in &lt;code&gt;&amp;lt;type_traits&amp;gt;&lt;/code&gt; for smart
+pointers, and &lt;code&gt;std::is_pointer&amp;lt;T&amp;gt;&lt;/code&gt; does not evaluate &lt;code&gt;true&lt;/code&gt; for them, so I have &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; specialized
+for &lt;code&gt;std::shared_ptr&lt;/code&gt; and &lt;code&gt;std::unique_ptr&lt;/code&gt; with all methods deleted.&lt;/p&gt;
+&lt;p&gt;Thus, we have &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;requires&lt;/span&gt;(&lt;span style="color:#f92672"&gt;!&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;is_pointer_v&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;class&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;Locked&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;mutable&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_mutex _mtx;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; T _val;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;public&lt;/span&gt;&lt;span style="color:#f92672"&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Permit a default ctor only if T has one
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Locked()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;requires&lt;/span&gt;(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;is_default_constructible_v&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;:&lt;/span&gt; _val() {}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; U &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;remove_cv_t&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Locked(U &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;u) &lt;span style="color:#f92672"&gt;:&lt;/span&gt; _val(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;forward&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;U&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;(u)) {};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_mut() { &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; {std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock(_mtx), _val}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_mut() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_const() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; { &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; {std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock(_mtx), _val}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/* Render smart pointer instantiations unusable */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;class&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;Locked&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_ptr&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Locked() &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; U &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;remove_cv_t&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; Locked(U &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;u) &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_mut() &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_mut() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_const() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;class&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;Locked&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_ptr&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Locked() &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; U &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;remove_cv_t&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; Locked(U &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;u) &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_mut() &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_mut() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;T &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; get_const() &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;delete&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="i-promise-it-rolls"&gt;I promise it rolls&lt;a href="#i-promise-it-rolls" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;To wrap this up, I&amp;rsquo;ll just give two quick examples of this in use; one as part of an expression
+where we don&amp;rsquo;t want a longer living lock, and the other where we do.&lt;/p&gt;
+&lt;p&gt;For the first, I&amp;rsquo;ll pull out a piece of &lt;code&gt;indy-tui&lt;/code&gt;&amp;rsquo;s UI where I display some information about the on
+track event. I want to show how much of the current event is left to go &amp;ndash; if the current on track
+session is a practice or qualifying session, all that matters is the time left in the
+event. Conversely, if it&amp;rsquo;s a race, we should show the number of laps completed alongside the total number
+of laps. To accomplish this, I need to:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Determine the current session type, stored as a &lt;code&gt;Locked&amp;lt;std::optional&amp;lt;Telemetry::SessionType&amp;gt;&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;If the session type is a race:
+&lt;ul&gt;
+&lt;li&gt;Retrieve the current laps completed, giving us &lt;code&gt;std::optional&amp;lt;int&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;If the &lt;code&gt;int&lt;/code&gt; is present, convert it to a string, otherwise do nothing&lt;/li&gt;
+&lt;li&gt;Retrieve the total laps, giving us &lt;code&gt;std::optional&amp;lt;int&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Again convert to a string if present, otherwise do nothing&lt;/li&gt;
+&lt;li&gt;Update the row as &lt;code&gt;&amp;quot;Lap&amp;quot;&lt;/code&gt; followed by &lt;code&gt;&amp;quot;{} / {}&amp;quot;&lt;/code&gt; formatted with the strings resulting from the
+above steps or &lt;code&gt;&amp;quot;--&amp;quot;&lt;/code&gt; if not present&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;If the session type is a practice or qualifying session:
+&lt;ul&gt;
+&lt;li&gt;Retrieve the time left in the session, stored as &lt;code&gt;Locked&amp;lt;std::optional&amp;lt;std::string&amp;gt;&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Update the row as &lt;code&gt;&amp;quot;Time left&amp;quot;&lt;/code&gt; followed by the time left if present, otherwise &lt;code&gt;&amp;quot;--:--:--&amp;quot;&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;To do this before would&amp;rsquo;ve required manually taking a shared lock of &lt;code&gt;completed_laps&lt;/code&gt; and &lt;code&gt;total_laps&lt;/code&gt;,
+possibly requiring two extra scopes if I wanted to avoid locking both at the same time&lt;sup id="fnref:14"&gt;&lt;a href="#fn:14" class="footnote-ref" role="doc-noteref"&gt;14&lt;/a&gt;&lt;/sup&gt;. The &lt;code&gt;Table&lt;/code&gt; UI element
+that&amp;rsquo;s in use here has the ability to update a full row or column with a vector, and the
+&lt;code&gt;std::optional&amp;lt;int&amp;gt;&lt;/code&gt; fields give us the ability to use the mapping methods &lt;code&gt;.transform()&lt;/code&gt; and
+&lt;code&gt;.and_then()&lt;/code&gt; to do something with the (possibly) contained value and return another
+&lt;code&gt;std::optional&amp;lt;T&amp;gt;&lt;/code&gt;. Thus, if we had the ability to safely and cleanly access these fields as part of
+an expression, we could keep this row update concise. Thankfully, I have my trusty new &lt;em&gt;(slightly
+oxidized&lt;/em&gt;) wheel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (sess.session_type.get_const()&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;value_or(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; SessionType&lt;span style="color:#f92672"&gt;::&lt;/span&gt;PRACTICE) &lt;span style="color:#f92672"&gt;==&lt;/span&gt; SessionType&lt;span style="color:#f92672"&gt;::&lt;/span&gt;RACE)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; res &lt;span style="color:#f92672"&gt;=&lt;/span&gt; table.update_row(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;, {&lt;span style="color:#e6db74"&gt;&amp;#34;Lap&amp;#34;&lt;/span&gt;, std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;format(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;{} / {}&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; sess.completed_laps.get_const()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;transform([](&lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; i) { &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;to_string(i); })
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; .value_or(&lt;span style="color:#e6db74"&gt;&amp;#34;--&amp;#34;&lt;/span&gt;),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; sess.total_laps.get_const()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;transform([](&lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; i) { &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;to_string(i); })
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; .value_or(&lt;span style="color:#e6db74"&gt;&amp;#34;--&amp;#34;&lt;/span&gt;))});
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;else&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; res &lt;span style="color:#f92672"&gt;=&lt;/span&gt; table.update_row(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;, {&lt;span style="color:#e6db74"&gt;&amp;#34;Time left&amp;#34;&lt;/span&gt;, sess.time_to_go.get_const()&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;value_or(&lt;span style="color:#e6db74"&gt;&amp;#34;--:--:--&amp;#34;&lt;/span&gt;)});
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For that second example, I&amp;rsquo;ll pick out a smaller component&lt;sup id="fnref:15"&gt;&lt;a href="#fn:15" class="footnote-ref" role="doc-noteref"&gt;15&lt;/a&gt;&lt;/sup&gt;. In the logic to display the live leaderboard, I have a table of possibly changing size
+dependent on two things &amp;ndash; the number of drivers, and the number of columns desired&lt;sup id="fnref:16"&gt;&lt;a href="#fn:16" class="footnote-ref" role="doc-noteref"&gt;16&lt;/a&gt;&lt;/sup&gt;. Thus, when I want to update one of these values, I
+need to do some reconfiguration afterwards.&lt;/p&gt;
+&lt;p&gt;For some reason, I decided to have setters for the number of drivers and the columns individually,
+pulling the reconfiguration out to another method which both call. Multiple operations are done
+assuming all properties are unchanged throughout the reconfiguration, so all will need to be locked
+in some way. These don&amp;rsquo;t change much, so it wasn&amp;rsquo;t too much of an issue to grab a unique lock on
+each element &lt;em&gt;(the table, the vector of columns, and the number of drivers&lt;/em&gt;). As discussed earlier
+though, I needed to be sure we&amp;rsquo;re not releasing the lock on the newly changed component &amp;ndash; I decided
+to move the retrieved &lt;code&gt;LockPair&lt;/code&gt; into the reconfiguration call. For the other components, I didn&amp;rsquo;t
+want the reconfiguration method to have to know what locks it needs to take based on the caller, so
+I decided to simply have the reconfiguration method move in a &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; for each of the three
+components. This way, the caller is the arbiter of which locks are taken when, moving them all into
+the reconfiguration at the end regardless.&lt;/p&gt;
+&lt;p&gt;For updating the columns and the subsequent reconfiguration this gives us:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;void&lt;/span&gt; LeaderboardView&lt;span style="color:#f92672"&gt;::&lt;/span&gt;set_columns(std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;vector&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;ColumnInfo&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;cs) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; locked_columns &lt;span style="color:#f92672"&gt;=&lt;/span&gt; _cols.get_mut();
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;*&lt;/span&gt;locked_columns &lt;span style="color:#f92672"&gt;=&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;move(cs);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; reconstruct_table(table.get_mut(), std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;move(locked_columns),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; _num_drivers.get_mut());
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// We no longer own the lock on the columns, so even though
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// locked_columns goes out of scope, the lock is not released
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;void&lt;/span&gt; LeaderboardView&lt;span style="color:#f92672"&gt;::&lt;/span&gt;reconstruct_table(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;UI&lt;span style="color:#f92672"&gt;::&lt;/span&gt;Table&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;locked_table,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;vector&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;ColumnInfo&lt;span style="color:#f92672"&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;locked_columns,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;size_t&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt;locked_num) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Reset dimensions, adding 1 row to account for column titles
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; locked_table&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;set_dim(Table&lt;span style="color:#f92672"&gt;::&lt;/span&gt;Dim(&lt;span style="color:#f92672"&gt;*&lt;/span&gt;locked_num, locked_columns&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;size()));
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Set alignment based on the columns
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;for&lt;/span&gt; (&lt;span style="color:#66d9ef"&gt;auto&lt;/span&gt; [idx, c] &lt;span style="color:#f92672"&gt;:&lt;/span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;views&lt;span style="color:#f92672"&gt;::&lt;/span&gt;enumerate(&lt;span style="color:#f92672"&gt;*&lt;/span&gt;locked_columns))
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; locked_table&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;column_props(idx)&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;align &lt;span style="color:#f92672"&gt;=&lt;/span&gt; c.align;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// All three locks are going to go out of scope, and we own them
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// here so each lock will be released
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see"&gt;Epilogue &amp;ndash; There are wheels everywhere for those with the eyes to see&lt;a href="#epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;Very quickly after finishing this implementation, I noticed &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; is actually useful beyond as
+just a conduit for &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt;. Elsewhere in the project, I have shared components which are a little
+more complex than &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; feels good for. In one such case, I have a frequently rearranged
+vector of driver objects which themselves have a fair amount going on. Between this and existence of
+implementation that I don&amp;rsquo;t see the benefit in updating, this is a shared component which still must
+be manually locked.&lt;/p&gt;
+&lt;p&gt;However, as part of a refactor, I needed to give a part of the UI a way to get a snapshot of this
+vector, as it&amp;rsquo;s the current ordering of the drivers on track. These drivers objects are not exactly
+the smallest, and this is one of the most frequently hit sections of the codebase, so I don&amp;rsquo;t want
+to be copying the vector each time. Ultimately, what I wanted was a way to hand off a const
+reference to this vector with an automatically handled lock.&lt;/p&gt;
+&lt;p&gt;Hey wait that sounds familiar.&lt;/p&gt;
+&lt;p&gt;Using &lt;code&gt;LockPair&lt;/code&gt;, I can do exactly that, even though the vector and its mutex are not related to a
+&lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; object whatsoever. Thus, the call for the UI to retrieve the drivers in their on-track
+ordering is:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;ThreadSafe&lt;span style="color:#f92672"&gt;::&lt;/span&gt;LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;vector&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;DriverTelemetry&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;TelemetryBoard&lt;span style="color:#f92672"&gt;::&lt;/span&gt;reorder_and_get() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Order drivers by rank, then calculate gap to leader
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;unique_lock lock(_driver_vec_mtx);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;/* ... Omitted as it&amp;#39;s not relevant ... */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Acquire and return a shared_lock on the drivers vec
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; {std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;shared_lock(_driver_vec_mtx), _drivers};
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="footnotes" role="doc-endnotes"&gt;
+&lt;hr&gt;
+&lt;ol&gt;
+&lt;li id="fn:1"&gt;
+&lt;p&gt;See &lt;a
+ href="https://github.com/schelcc/indy-tui"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;the github repo&lt;/a&gt; for the project, or
+&lt;a
+ href="https://schelcc.dev/tags/indy-tui"
+ 
+ 
+&gt;#indy-tui&lt;/a&gt; for more here&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:2"&gt;
+&lt;p&gt;Huge shoutout to this wonderful talk from David Olsen
+&lt;a
+ href="https://www.youtube.com/watch?v=8rEGu20Uw4g"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;Back To Basics: C++ Concurrency&lt;/a&gt;&amp;#160;&lt;a href="#fnref:2" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:3"&gt;
+&lt;p&gt;A tip. If you are early on in a project and are
+already in enough of a deadlock mess to think that logging lock acquisition is going to be
+helpful. Maybe like, do something else? Oops.&amp;#160;&lt;a href="#fnref:3" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:4"&gt;
+&lt;p&gt;We need not discuss
+the caveat. It is certainly not a queue. Certainly I did not try a thread-safe queue based on what I
+remember from my computer organization class. Certainly.&amp;#160;&lt;a href="#fnref:4" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:5"&gt;
+&lt;p&gt;Read: mutilation&amp;#160;&lt;a href="#fnref:5" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:6"&gt;
+&lt;p&gt;I did not end up trying a macro. The world should
+consider itself lucky there is a part of my brain capable of keeping me from reaching for macros and
+&lt;code&gt;goto&lt;/code&gt;.&amp;#160;&lt;a href="#fnref:6" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:7"&gt;
+&lt;p&gt;Fear not for later that day I
+watched Casey Muratori&amp;rsquo;s &lt;a
+ href="https://www.youtube.com/watch?v=wo84LFzx5nI"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;The Big OOPs&lt;/a&gt; and that concluded&amp;#160;&lt;a href="#fnref:7" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:8"&gt;
+&lt;p&gt;To
+verify, I wrote up a simple compiler explorer example &amp;ndash; as far as I can tell, GCC and Clang seem to
+do different things with this &lt;code&gt;set()&lt;/code&gt; then &lt;code&gt;get()&lt;/code&gt; sequence. In GCC I cannot get the two to disagree
+(i.e. another &lt;code&gt;set()&lt;/code&gt; occurs in between pair &lt;code&gt;set()&lt;/code&gt; and &lt;code&gt;get()&lt;/code&gt; calls), but in Clang it seems relatively
+frequent. I might investigate this further later, but here&amp;rsquo;s the link:
+&lt;a
+ href="https://godbolt.org/z/hqWrfPve3"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;https://godbolt.org/z/hqWrfPve3&lt;/a&gt;&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:9"&gt;
+&lt;p&gt;I can&amp;rsquo;t find
+a link to the standards discussion but someone is proposing nested structured bindings which would be so good
+please I am begging&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:10"&gt;
+&lt;p&gt;Huge shoutout to Rose
+please check out their page &lt;a
+ href="https://ikl.sh/"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;https://ikl.sh/&lt;/a&gt;&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:11"&gt;
+&lt;p&gt;And tangent I will. If the
+&lt;code&gt;operator-&amp;gt;()&lt;/code&gt; overload returns a pointer, it behaves exactly as expected, giving us the equivalent of
+&lt;code&gt;(*obj).foo()&lt;/code&gt;. But, if it returns a non-pointer, &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; is then applied on &lt;em&gt;that&lt;/em&gt; value,
+repeating this until a pointer is returned, which is then dereferenced as usual. This &amp;ldquo;drilling
+down&amp;rdquo; behavior was (to me) surprising but I guess makes sense &amp;ndash; if we have &lt;code&gt;T** ptr&lt;/code&gt; and want to
+access the object, it would be quite annoying to have to do &lt;code&gt;ptr-&amp;gt;-&amp;gt;foo()&lt;/code&gt;.&amp;#160;&lt;a href="#fnref:11" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:12"&gt;
+&lt;p&gt;An earlier attempt saw me returning a pointer
+whenever the wrapped object did not have the dereference operator defined, otherwise I returned a
+reference to the result of dereferencing it. Because of that drill-down behavior this actually
+punched straight through things like std::optional and would&amp;rsquo;ve been a nightmare&amp;hellip;&amp;#160;&lt;a href="#fnref:12" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:13"&gt;
+&lt;p&gt;I&amp;rsquo;ve just now
+realized that, if desired, we could further template this to allow us to define the possible lock
+types, meaning we &lt;em&gt;could&lt;/em&gt; extend this past shared and unique lock if we so desired&amp;#160;&lt;a href="#fnref:13" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:14"&gt;
+&lt;p&gt;Which I&amp;rsquo;d
+want to do to avoid unnecessary contention as these would be updated often&amp;#160;&lt;a href="#fnref:14" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:15"&gt;
+&lt;p&gt;What&amp;rsquo;s here is already a bit
+vestigial &amp;ndash; I need to update some pieces which would wind up mooting this part. But it&amp;rsquo;s a good
+example.&amp;#160;&lt;a href="#fnref:15" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:16"&gt;
+&lt;p&gt;The columns
+are functors which produce a string given a driver&amp;rsquo;s current information, so adding a new column of
+information is simply adding a new functor&amp;#160;&lt;a href="#fnref:16" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description></item><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
 the delay queue used in &lt;a
  href="https://schelcc.dev/tags/indy-tui"
  
