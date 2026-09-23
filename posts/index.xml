@@ -88,10 +88,14 @@ const reference to the wrapped object&lt;/li&gt;
 &lt;li&gt;When necessary, I can still hold a lock on the object for an arbitrary amount of time &lt;em&gt;(e.g. need
 to work on several objects and need all locked to do so)&lt;/em&gt;&lt;/li&gt;
 &lt;/ol&gt;
+&lt;p&gt;Surely&lt;sup id="fnref:7"&gt;&lt;a href="#fn:7" class="footnote-ref" role="doc-noteref"&gt;7&lt;/a&gt;&lt;/sup&gt;, the shared mutex and manual use of the shared/unique locks is
+perfectly viable. I just don&amp;rsquo;t like it. Also it&amp;rsquo;s my learning project and I&amp;rsquo;ll overengineer types if
+I want to.&lt;/p&gt;
+&lt;p&gt;With that, let the wheel reinvention commence.&lt;/p&gt;
 &lt;h2 id="the-triangular-wheel"&gt;The triangular wheel&lt;a href="#the-triangular-wheel" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h2&gt;
 &lt;p&gt;First is the solution that truly missed the mark.&lt;/p&gt;
-&lt;p&gt;For whatever reason I was quite stuck in OOP brain when working on this&lt;sup id="fnref:7"&gt;&lt;a href="#fn:7" class="footnote-ref" role="doc-noteref"&gt;7&lt;/a&gt;&lt;/sup&gt;, so immediately what came to mind was a
+&lt;p&gt;For whatever reason I was quite stuck in OOP brain when working on this&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;, so immediately what came to mind was a
 wrapper which simply defined a getter and setter, taking a shared lock and unique lock respectively:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Omitting constructors and whatnot
 &lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;template&lt;/span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;typename&lt;/span&gt; T&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
@@ -132,7 +136,7 @@ You might say to return a reference to the wrapper in set:&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;some_field.set(T()).get();
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This &amp;ldquo;works&amp;rdquo;, but there is a suspiciously elephant-shaped object in the corner that is begging to be
 acknowledged: we release the unique_lock and then some time later take the shared_lock. In other
-words, &lt;em&gt;we are not guaranteed that &lt;code&gt;some_field&lt;/code&gt; has not changed again between &lt;code&gt;set()&lt;/code&gt; and &lt;code&gt;get()&lt;/code&gt;&lt;/em&gt;.&lt;sup id="fnref:8"&gt;&lt;a href="#fn:8" class="footnote-ref" role="doc-noteref"&gt;8&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+words, &lt;em&gt;we are not guaranteed that &lt;code&gt;some_field&lt;/code&gt; has not changed again between &lt;code&gt;set()&lt;/code&gt; and &lt;code&gt;get()&lt;/code&gt;&lt;/em&gt;.&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
 &lt;p&gt;Regardless of if I&amp;rsquo;m wrong and there is somehow a guarantee that the two calls will always directly
 follow each other, I still threw this solution out &amp;ndash; the forced copying alone is a nonstarter, and
 this doesn&amp;rsquo;t allow me to actually hold onto the lock for longer if needed.&lt;/p&gt;
@@ -157,7 +161,7 @@ before to instead get locks. In comes the trusty &lt;code&gt;std::pair&lt;/code&
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;structured bindings&lt;/a&gt;&lt;sup id="fnref:9"&gt;&lt;a href="#fn:9" class="footnote-ref" role="doc-noteref"&gt;9&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
+&gt;structured bindings&lt;/a&gt;&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt;:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// shared and unique lock are templated on the mutex type -- they were
 &lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// inferred before, but won&amp;#39;t be now, so we&amp;#39;ll just add a defaulted
 &lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// template parameter to fill them in
@@ -207,7 +211,7 @@ lifetime)&lt;/em&gt; we have to call the annoying &lt;code&gt;.second&lt;/code&g
 wanted to be able to somehow &amp;ldquo;wrap&amp;rdquo; an entire type to lock before and after like you could with a
 decorated function, but have that type behave almost exactly like the wrapped type &amp;ndash; I wanted the
 lock to be invisible.&lt;/p&gt;
-&lt;p&gt;Now is when I reached out to a friend and much better programmer&lt;sup id="fnref:10"&gt;&lt;a href="#fn:10" class="footnote-ref" role="doc-noteref"&gt;10&lt;/a&gt;&lt;/sup&gt; to see what they thought; whether this was even a
+&lt;p&gt;Now is when I reached out to a friend and much better programmer&lt;sup id="fnref:11"&gt;&lt;a href="#fn:11" class="footnote-ref" role="doc-noteref"&gt;11&lt;/a&gt;&lt;/sup&gt; to see what they thought; whether this was even a
 decent pattern, or if I was simply losing it. Turns out it was a bit of both &amp;ndash; this was
 &lt;a
  href="https://en.wikipedia.org/wiki/Carcinisation"
@@ -234,8 +238,8 @@ like the wrapped type&lt;/li&gt;
 &lt;p&gt;Translating (1) to C++ land for &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt;, we need to define &lt;code&gt;operator*()&lt;/code&gt; and &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; for some
 templated struct which has the templated type and a lock. When an instance of this struct is
 dereferenced, we want to return a &lt;em&gt;(possibly const)&lt;/em&gt; reference to the wrapped object &amp;ndash; this is our
-&lt;code&gt;operator*()&lt;/code&gt;. The specifics of &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; are a bit of a tangent&lt;sup id="fnref:11"&gt;&lt;a href="#fn:11" class="footnote-ref" role="doc-noteref"&gt;11&lt;/a&gt;&lt;/sup&gt;, but here we can get away
-with just returning a &lt;em&gt;(possibly const)&lt;/em&gt; pointer&lt;sup id="fnref:12"&gt;&lt;a href="#fn:12" class="footnote-ref" role="doc-noteref"&gt;12&lt;/a&gt;&lt;/sup&gt; to the wrapped
+&lt;code&gt;operator*()&lt;/code&gt;. The specifics of &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; are a bit of a tangent&lt;sup id="fnref:12"&gt;&lt;a href="#fn:12" class="footnote-ref" role="doc-noteref"&gt;12&lt;/a&gt;&lt;/sup&gt;, but here we can get away
+with just returning a &lt;em&gt;(possibly const)&lt;/em&gt; pointer&lt;sup id="fnref:13"&gt;&lt;a href="#fn:13" class="footnote-ref" role="doc-noteref"&gt;13&lt;/a&gt;&lt;/sup&gt; to the wrapped
 object.&lt;/p&gt;
 &lt;p&gt;The other half of the &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; is the lock itself. With &lt;code&gt;std::unique_lock&lt;/code&gt; and &lt;code&gt;std::shared_lock&lt;/code&gt;,
 the RAII functionality is such that when the object that &lt;em&gt;currently&lt;/em&gt; owns the lock goes out of scope,
@@ -243,7 +247,7 @@ the lock is released. Thus, we have to be sure to own the lock for this to work,
 we&amp;rsquo;ll want to move it in. A neat result of the RAII usage is that we don&amp;rsquo;t actually have to interact
 with the lock &lt;em&gt;at all&lt;/em&gt;, we just need to hold onto it. Regardless of whether we have a unique or shared
 lock, any information we need to generate the appropriate methods is contained in the templated type
-&amp;ndash; we can just shove the lock in a variant of the two lock types and move on.&lt;sup id="fnref:13"&gt;&lt;a href="#fn:13" class="footnote-ref" role="doc-noteref"&gt;13&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&amp;ndash; we can just shove the lock in a variant of the two lock types and move on.&lt;sup id="fnref:14"&gt;&lt;a href="#fn:14" class="footnote-ref" role="doc-noteref"&gt;14&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
 &lt;p&gt;The final constraint on &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; to note is that we template around the wrapped type, not a
 reference to the wrapped type, so we&amp;rsquo;ll just add a requirement on the template that &lt;code&gt;T&lt;/code&gt; is not a
 reference.&lt;/p&gt;
@@ -380,7 +384,7 @@ above steps or &lt;code&gt;&amp;quot;--&amp;quot;&lt;/code&gt; if not present&lt
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;To do this before would&amp;rsquo;ve required manually taking a shared lock of &lt;code&gt;completed_laps&lt;/code&gt; and &lt;code&gt;total_laps&lt;/code&gt;,
-possibly requiring two extra scopes if I wanted to avoid locking both at the same time&lt;sup id="fnref:14"&gt;&lt;a href="#fn:14" class="footnote-ref" role="doc-noteref"&gt;14&lt;/a&gt;&lt;/sup&gt;. The &lt;code&gt;Table&lt;/code&gt; UI element
+possibly requiring two extra scopes if I wanted to avoid locking both at the same time&lt;sup id="fnref:15"&gt;&lt;a href="#fn:15" class="footnote-ref" role="doc-noteref"&gt;15&lt;/a&gt;&lt;/sup&gt;. The &lt;code&gt;Table&lt;/code&gt; UI element
 that&amp;rsquo;s in use here has the ability to update a full row or column with a vector, and the
 &lt;code&gt;std::optional&amp;lt;int&amp;gt;&lt;/code&gt; fields give us the ability to use the mapping methods &lt;code&gt;.transform()&lt;/code&gt; and
 &lt;code&gt;.and_then()&lt;/code&gt; to do something with the (possibly) contained value and return another
@@ -401,8 +405,8 @@ oxidized&lt;/em&gt;) wheel:&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;else&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; res &lt;span style="color:#f92672"&gt;=&lt;/span&gt; table.update_row(
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;, {&lt;span style="color:#e6db74"&gt;&amp;#34;Time left&amp;#34;&lt;/span&gt;, sess.time_to_go.get_const()&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;value_or(&lt;span style="color:#e6db74"&gt;&amp;#34;--:--:--&amp;#34;&lt;/span&gt;)});
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For that second example, I&amp;rsquo;ll pick out a smaller component&lt;sup id="fnref:15"&gt;&lt;a href="#fn:15" class="footnote-ref" role="doc-noteref"&gt;15&lt;/a&gt;&lt;/sup&gt;. In the logic to display the live leaderboard, I have a table of possibly changing size
-dependent on two things &amp;ndash; the number of drivers, and the number of columns desired&lt;sup id="fnref:16"&gt;&lt;a href="#fn:16" class="footnote-ref" role="doc-noteref"&gt;16&lt;/a&gt;&lt;/sup&gt;. Thus, when I want to update one of these values, I
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For that second example, I&amp;rsquo;ll pick out a smaller component&lt;sup id="fnref:16"&gt;&lt;a href="#fn:16" class="footnote-ref" role="doc-noteref"&gt;16&lt;/a&gt;&lt;/sup&gt;. In the logic to display the live leaderboard, I have a table of possibly changing size
+dependent on two things &amp;ndash; the number of drivers, and the number of columns desired&lt;sup id="fnref:17"&gt;&lt;a href="#fn:17" class="footnote-ref" role="doc-noteref"&gt;17&lt;/a&gt;&lt;/sup&gt;. Thus, when I want to update one of these values, I
 need to do some reconfiguration afterwards.&lt;/p&gt;
 &lt;p&gt;For some reason, I decided to have setters for the number of drivers and the columns individually,
 pulling the reconfiguration out to another method which both call. Multiple operations are done
@@ -485,7 +489,7 @@ ordering is:&lt;/p&gt;
  href="https://schelcc.dev/tags/indy-tui"
  
  
-&gt;#indy-tui&lt;/a&gt; for more here&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;#indy-tui&lt;/a&gt; for more here.&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:2"&gt;
 &lt;p&gt;Huge shoutout to this wonderful talk from David Olsen
@@ -495,7 +499,7 @@ ordering is:&lt;/p&gt;
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;Back To Basics: C++ Concurrency&lt;/a&gt;&amp;#160;&lt;a href="#fnref:2" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;Back To Basics: C++ Concurrency&lt;/a&gt;.&amp;#160;&lt;a href="#fnref:2" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:3"&gt;
 &lt;p&gt;A tip. If you are early on in a project and are
@@ -508,7 +512,7 @@ the caveat. It is certainly not a queue. Certainly I did not try a thread-safe q
 remember from my computer organization class. Certainly.&amp;#160;&lt;a href="#fnref:4" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:5"&gt;
-&lt;p&gt;Read: mutilation&amp;#160;&lt;a href="#fnref:5" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Read: mutilation.&amp;#160;&lt;a href="#fnref:5" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:6"&gt;
 &lt;p&gt;I did not end up trying a macro. The world should
@@ -516,6 +520,9 @@ consider itself lucky there is a part of my brain capable of keeping me from rea
 &lt;code&gt;goto&lt;/code&gt;.&amp;#160;&lt;a href="#fnref:6" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:7"&gt;
+&lt;p&gt;Don&amp;rsquo;t call me Shirley.&amp;#160;&lt;a href="#fnref:7" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:8"&gt;
 &lt;p&gt;Fear not for later that day I
 watched Casey Muratori&amp;rsquo;s &lt;a
  href="https://www.youtube.com/watch?v=wo84LFzx5nI"
@@ -523,9 +530,9 @@ watched Casey Muratori&amp;rsquo;s &lt;a
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;The Big OOPs&lt;/a&gt; and that concluded&amp;#160;&lt;a href="#fnref:7" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;The Big OOPs&lt;/a&gt; and that concluded.&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:8"&gt;
+&lt;li id="fn:9"&gt;
 &lt;p&gt;To
 verify, I wrote up a simple compiler explorer example &amp;ndash; as far as I can tell, GCC and Clang seem to
 do different things with this &lt;code&gt;set()&lt;/code&gt; then &lt;code&gt;get()&lt;/code&gt; sequence. In GCC I cannot get the two to disagree
@@ -537,14 +544,14 @@ frequent. I might investigate this further later, but here&amp;rsquo;s the link:
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://godbolt.org/z/hqWrfPve3&lt;/a&gt;&amp;#160;&lt;a href="#fnref:8" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;li id="fn:9"&gt;
-&lt;p&gt;I can&amp;rsquo;t find
-a link to the standards discussion but someone is proposing nested structured bindings which would be so good
-please I am begging&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://godbolt.org/z/hqWrfPve3&lt;/a&gt;.&amp;#160;&lt;a href="#fnref:9" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:10"&gt;
+&lt;p&gt;I can&amp;rsquo;t find
+a link to the standards discussion but someone is proposing nested structured bindings which would
+be so good please I am begging.&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:11"&gt;
 &lt;p&gt;Huge shoutout to Rose
 please check out their page &lt;a
  href="https://ikl.sh/"
@@ -552,40 +559,40 @@ please check out their page &lt;a
  
  class="link--external" target="_blank" rel="noreferrer"
  
-&gt;https://ikl.sh/&lt;/a&gt;&amp;#160;&lt;a href="#fnref:10" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&gt;https://ikl.sh/&lt;/a&gt;.&amp;#160;&lt;a href="#fnref:11" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:11"&gt;
+&lt;li id="fn:12"&gt;
 &lt;p&gt;And tangent I will. If the
 &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; overload returns a pointer, it behaves exactly as expected, giving us the equivalent of
 &lt;code&gt;(*obj).foo()&lt;/code&gt;. But, if it returns a non-pointer, &lt;code&gt;operator-&amp;gt;()&lt;/code&gt; is then applied on &lt;em&gt;that&lt;/em&gt; value,
 repeating this until a pointer is returned, which is then dereferenced as usual. This &amp;ldquo;drilling
 down&amp;rdquo; behavior was (to me) surprising but I guess makes sense &amp;ndash; if we have &lt;code&gt;T** ptr&lt;/code&gt; and want to
-access the object, it would be quite annoying to have to do &lt;code&gt;ptr-&amp;gt;-&amp;gt;foo()&lt;/code&gt;.&amp;#160;&lt;a href="#fnref:11" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+access the object, it would be quite annoying to have to do &lt;code&gt;ptr-&amp;gt;-&amp;gt;foo()&lt;/code&gt;.&amp;#160;&lt;a href="#fnref:12" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
-&lt;li id="fn:12"&gt;
+&lt;li id="fn:13"&gt;
 &lt;p&gt;An earlier attempt saw me returning a pointer
 whenever the wrapped object did not have the dereference operator defined, otherwise I returned a
 reference to the result of dereferencing it. Because of that drill-down behavior this actually
-punched straight through things like std::optional and would&amp;rsquo;ve been a nightmare&amp;hellip;&amp;#160;&lt;a href="#fnref:12" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;li id="fn:13"&gt;
-&lt;p&gt;I&amp;rsquo;ve just now
-realized that, if desired, we could further template this to allow us to define the possible lock
-types, meaning we &lt;em&gt;could&lt;/em&gt; extend this past shared and unique lock if we so desired&amp;#160;&lt;a href="#fnref:13" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+punched straight through things like std::optional and would&amp;rsquo;ve been a nightmare&amp;hellip;&amp;#160;&lt;a href="#fnref:13" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:14"&gt;
-&lt;p&gt;Which I&amp;rsquo;d
-want to do to avoid unnecessary contention as these would be updated often&amp;#160;&lt;a href="#fnref:14" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;I&amp;rsquo;ve just now
+realized that, if desired, we could further template this to allow us to define the possible lock
+types, meaning we &lt;em&gt;could&lt;/em&gt; extend this past shared and unique lock if we so desired.&amp;#160;&lt;a href="#fnref:14" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:15"&gt;
-&lt;p&gt;What&amp;rsquo;s here is already a bit
-vestigial &amp;ndash; I need to update some pieces which would wind up mooting this part. But it&amp;rsquo;s a good
-example.&amp;#160;&lt;a href="#fnref:15" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Which I&amp;rsquo;d
+want to do to avoid unnecessary contention as these would be updated often.&amp;#160;&lt;a href="#fnref:15" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;li id="fn:16"&gt;
+&lt;p&gt;What&amp;rsquo;s here is already a bit
+vestigial &amp;ndash; I need to update some pieces which would wind up mooting this part. But it&amp;rsquo;s a good
+example.&amp;#160;&lt;a href="#fnref:16" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:17"&gt;
 &lt;p&gt;The columns
 are functors which produce a string given a driver&amp;rsquo;s current information, so adding a new column of
-information is simply adding a new functor&amp;#160;&lt;a href="#fnref:16" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+information is simply adding a new functor.&amp;#160;&lt;a href="#fnref:17" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;/div&gt;</description></item><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
