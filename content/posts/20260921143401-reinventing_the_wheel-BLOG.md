@@ -518,9 +518,31 @@ void LeaderboardView::reconstruct_table(
 ```
 
 
+## Conclusion {#conclusion}
+
+The material takeaway is the above -- `Locked<T>` and `LockPair<T>`. But, further than that, this whole
+endeavor was a bit of an excursion. Personally, I love to take these sorts of things on. It's mostly
+simple, which means nailing the ergonomics _(and actually getting the code right)_ is that much more
+important; if the thing I'm trying to smooth out winds up easier to use than the thing I make... well
+at least I have something to learn from.
+
+Likewise, they also give me a chance to really grow my knowledge. If I'm trying to just get a task
+done, I'm going to figure out how to do it and probably move on. Conversely, if I'm trying to make
+something that I plan to use generally, I have to take more time paying attention to edge cases and
+what's really going on. Something that directly preceeded this actually an attempt to marry this
+concept with `std::optional`, making some sort of `LockedOptional`. Even though that was _very_ scrapped,
+trying to hand-roll `std::optional` was very, very interesting and was a great learning
+experience[^fn:18].
+
+So, did I reinvent the wheel a tad bit? Maybe. But, I left with a deeper understanding of C++ than I
+went in with, and now I have a tool which has already proved very helpful.
+
+
 ## Epilogue -- There are wheels everywhere for those with the eyes to see {#epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see}
 
-Very quickly after finishing this implementation, I noticed `LockPair<T>` is actually useful beyond as
+One final not-entirely-relevant note which is relevant enough to mention.
+
+Very quickly after finishing this implementation, I noticed `LockPair<T>` is actually useful beyond being
 just a conduit for `Locked<T>`. Elsewhere in the project, I have shared components which are a little
 more complex than `Locked<T>` feels good for. In one such case, I have a frequently rearranged
 vector of driver objects which themselves have a fair amount going on. Between this and existence of
@@ -537,7 +559,7 @@ Hey wait that sounds familiar.
 
 Using `LockPair`, I can do exactly that, even though the vector and its mutex are not related to a
 `Locked<T>` object whatsoever. Thus, the call for the UI to retrieve the drivers in their on-track
-ordering is:
+ordering is roughly:
 
 ```cpp
 ThreadSafe::LockPair<std::vector<DriverTelemetry> const>
@@ -602,3 +624,6 @@ TelemetryBoard::reorder_and_get() {
 [^fn:17]: The columns
     are functors which produce a string given a driver's current information, so adding a new column of
     information is simply adding a new functor.
+[^fn:18]: I have read Microsoft's [deducing this](https://devblogs.microsoft.com/cppblog/cpp23-deducing-this/) article so many times, but only after
+    recognizing that my four overloads of every method was exactly what the author was talking about did
+    it _really_ click.
