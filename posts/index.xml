@@ -446,9 +446,26 @@ the reconfiguration at the end regardless.&lt;/p&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// All three locks are going to go out of scope, and we own them
 &lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// here so each lock will be released
 &lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see"&gt;Epilogue &amp;ndash; There are wheels everywhere for those with the eyes to see&lt;a href="#epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="conclusion"&gt;Conclusion&lt;a href="#conclusion" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h2&gt;
-&lt;p&gt;Very quickly after finishing this implementation, I noticed &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; is actually useful beyond as
+&lt;p&gt;The material takeaway is the above &amp;ndash; &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; and &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt;. But, further than that, this whole
+endeavor was a bit of an excursion. Personally, I love to take these sorts of things on. It&amp;rsquo;s mostly
+simple, which means nailing the ergonomics &lt;em&gt;(and actually getting the code right)&lt;/em&gt; is that much more
+important; if the thing I&amp;rsquo;m trying to smooth out winds up easier to use than the thing I make&amp;hellip; well
+at least I have something to learn from.&lt;/p&gt;
+&lt;p&gt;Likewise, they also give me a chance to really grow my knowledge. If I&amp;rsquo;m trying to just get a task
+done, I&amp;rsquo;m going to figure out how to do it and probably move on. Conversely, if I&amp;rsquo;m trying to make
+something that I plan to use generally, I have to take more time paying attention to edge cases and
+what&amp;rsquo;s really going on. Something that directly preceeded this actually an attempt to marry this
+concept with &lt;code&gt;std::optional&lt;/code&gt;, making some sort of &lt;code&gt;LockedOptional&lt;/code&gt;. Even though that was &lt;em&gt;very&lt;/em&gt; scrapped,
+trying to hand-roll &lt;code&gt;std::optional&lt;/code&gt; was very, very interesting and was a great learning
+experience&lt;sup id="fnref:18"&gt;&lt;a href="#fn:18" class="footnote-ref" role="doc-noteref"&gt;18&lt;/a&gt;&lt;/sup&gt;.&lt;/p&gt;
+&lt;p&gt;So, did I reinvent the wheel a tad bit? Maybe. But, I left with a deeper understanding of C++ than I
+went in with, and now I have a tool which has already proved very helpful.&lt;/p&gt;
+&lt;h2 id="epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see"&gt;Epilogue &amp;ndash; There are wheels everywhere for those with the eyes to see&lt;a href="#epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;/h2&gt;
+&lt;p&gt;One final not-entirely-relevant note which is relevant enough to mention.&lt;/p&gt;
+&lt;p&gt;Very quickly after finishing this implementation, I noticed &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; is actually useful beyond being
 just a conduit for &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt;. Elsewhere in the project, I have shared components which are a little
 more complex than &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; feels good for. In one such case, I have a frequently rearranged
 vector of driver objects which themselves have a fair amount going on. Between this and existence of
@@ -462,7 +479,7 @@ reference to this vector with an automatically handled lock.&lt;/p&gt;
 &lt;p&gt;Hey wait that sounds familiar.&lt;/p&gt;
 &lt;p&gt;Using &lt;code&gt;LockPair&lt;/code&gt;, I can do exactly that, even though the vector and its mutex are not related to a
 &lt;code&gt;Locked&amp;lt;T&amp;gt;&lt;/code&gt; object whatsoever. Thus, the call for the UI to retrieve the drivers in their on-track
-ordering is:&lt;/p&gt;
+ordering is roughly:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;ThreadSafe&lt;span style="color:#f92672"&gt;::&lt;/span&gt;LockPair&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;std&lt;span style="color:#f92672"&gt;::&lt;/span&gt;vector&lt;span style="color:#f92672"&gt;&amp;lt;&lt;/span&gt;DriverTelemetry&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;TelemetryBoard&lt;span style="color:#f92672"&gt;::&lt;/span&gt;reorder_and_get() {
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// Order drivers by rank, then calculate gap to leader
@@ -593,6 +610,17 @@ example.&amp;#160;&lt;a href="#fnref:16" class="footnote-backref" role="doc-back
 &lt;p&gt;The columns
 are functors which produce a string given a driver&amp;rsquo;s current information, so adding a new column of
 information is simply adding a new functor.&amp;#160;&lt;a href="#fnref:17" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn:18"&gt;
+&lt;p&gt;I have read Microsoft&amp;rsquo;s &lt;a
+ href="https://devblogs.microsoft.com/cppblog/cpp23-deducing-this/"
+ 
+ 
+ class="link--external" target="_blank" rel="noreferrer"
+ 
+&gt;deducing this&lt;/a&gt; article so many times, but only after
+recognizing that my four overloads of every method was exactly what the author was talking about did
+it &lt;em&gt;really&lt;/em&gt; click.&amp;#160;&lt;a href="#fnref:18" class="footnote-backref" role="doc-backlink"&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;/div&gt;</description></item><item><title>Delayable Telemetry Queue | Design Notes - indy-tui</title><link>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</link><pubDate>foo Thu, 06 Aug 2026 08:23:40 -0400</pubDate><guid>https://schelcc.dev/posts/20260724115454-delayble_telemetry_queue-blog/</guid><description>&lt;p&gt;As the core impetus for my most recent &lt;em&gt;(and ongoing)&lt;/em&gt; project, I think a break down of my design and implementation of
