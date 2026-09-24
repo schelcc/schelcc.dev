@@ -462,7 +462,7 @@ trying to hand-roll &lt;code&gt;std::optional&lt;/code&gt; was very, very intere
 experience&lt;sup id="fnref:18"&gt;&lt;a href="#fn:18" class="footnote-ref" role="doc-noteref"&gt;18&lt;/a&gt;&lt;/sup&gt;.&lt;/p&gt;
 &lt;p&gt;So, did I reinvent the wheel a tad bit? Maybe. But, I left with a deeper understanding of C++ than I
 went in with, and now I have a tool which has already proved very helpful.&lt;/p&gt;
-&lt;h2 id="epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see"&gt;Epilogue &amp;ndash; There are wheels everywhere for those with the eyes to see&lt;a href="#epilogue-there-are-wheels-everywhere-for-those-with-the-eyes-to-see" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
+&lt;h2 id="epilogue-these-wheels-are-made-for-rolling"&gt;Epilogue &amp;ndash; These wheels are made for rolling&lt;a href="#epilogue-these-wheels-are-made-for-rolling" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
 &lt;/h2&gt;
 &lt;p&gt;One final not-entirely-relevant note which is relevant enough to mention.&lt;/p&gt;
 &lt;p&gt;Very quickly after finishing this implementation, I noticed &lt;code&gt;LockPair&amp;lt;T&amp;gt;&lt;/code&gt; is actually useful beyond being
