@@ -32,7 +32,7 @@ then finally landing on `std::shared_mutex`.
 Thankfully, almost every instance of a need for shared data in this project[^fn:4] is a "one writer, many readers" situation,
 so `std::shared_mutex` is really the best option. Until recently, I was satisfied giving each of my
 classes a shared mutex _(or multiple to give load bearing components their own)_ and keeping access to
-them and their related data tightly behind private getters and setters. This was largely _fine_, it
+them and their related data tightly behind getters and setters. This was largely _fine_, it
 didn't feel the best but it seemed simple.
 
 It seemed simple.
