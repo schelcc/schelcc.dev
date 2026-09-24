@@ -21,7 +21,7 @@ then finally landing on &lt;code&gt;std::shared_mutex&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;Thankfully, almost every instance of a need for shared data in this project&lt;sup id="fnref:4"&gt;&lt;a href="#fn:4" class="footnote-ref" role="doc-noteref"&gt;4&lt;/a&gt;&lt;/sup&gt; is a &amp;ldquo;one writer, many readers&amp;rdquo; situation,
 so &lt;code&gt;std::shared_mutex&lt;/code&gt; is really the best option. Until recently, I was satisfied giving each of my
 classes a shared mutex &lt;em&gt;(or multiple to give load bearing components their own)&lt;/em&gt; and keeping access to
-them and their related data tightly behind private getters and setters. This was largely &lt;em&gt;fine&lt;/em&gt;, it
+them and their related data tightly behind getters and setters. This was largely &lt;em&gt;fine&lt;/em&gt;, it
 didn&amp;rsquo;t feel the best but it seemed simple.&lt;/p&gt;
 &lt;p&gt;It seemed simple.&lt;/p&gt;
 &lt;h3 id="i-like-dataclasses"&gt;I like dataclasses&lt;a href="#i-like-dataclasses" class="post-heading__anchor" aria-hidden="true"&gt;#&lt;/a&gt;
