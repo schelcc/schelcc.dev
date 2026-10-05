@@ -79,11 +79,11 @@ languageCode = "en-US"
     name = "Posts"
     url = "/posts"
     weight = 10
-  [[menu.main]]
-    identifier = "about"
-    name = "About"
-    url = "/about"
-    weight = 11
+#  [[menu.main]]
+#    identifier = "about"
+#    name = "About"
+#    url = "/about"
+#    weight = 11
   [[menu.main]]
     identifier = "CV"
     name = "CV"
